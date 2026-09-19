@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>running</title>
+<style>
+  body { font-family: monospace; padding: 1em; }
+  .pass { color: green; }
+  .fail { color: red; }
+  #summary { font-weight: bold; margin-top: 1em; }
+</style>
+</head>
+<body>
+<div id="results"></div>
+<div id="summary"></div>
+
+<script src="../parse.js"></script>
+<script src="assertions.js"></script>
+<script>
+  fetch('fixture.asc')
+    .then(function (res) { return res.text(); })
+    .then(function (text) {
+      var parsed = window.parseAsc(text);
+      var results = window.runAssertions(parsed);
+      var out = document.getElementById('results');
+      var passed = 0, failed = 0;
+      results.forEach(function (r) {
+        var div = document.createElement('div');
+        div.className = r.pass ? 'pass' : 'fail';
+        div.textContent = (r.pass ? 'PASS' : 'FAIL') + ' - ' + r.name + (r.pass ? '' : ' (' + r.detail + ')');
+        out.appendChild(div);
+        if (r.pass) passed++; else failed++;
+      });
+      document.getElementById('summary').textContent = passed + ' passed, ' + failed + ' failed';
+      document.title = failed === 0 ? 'PASS' : 'FAIL';
+    })
+    .catch(function (err) {
+      document.getElementById('summary').textContent = 'ERROR: ' + err;
+      document.title = 'FAIL';
+    });
+</script>
+</body>
+</html>

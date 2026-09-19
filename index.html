@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MattBid</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --ink: #1b1f24; --muted: #667085; --line: #e3e6ea;
+    --front: #4a90e2; --back: #4caf50; --double: #ff9800; --none: #ffd54f;
+    --off: #fde2e4; --wknd: #f0f2f5; --sel: #e8f0fe;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 -apple-system, system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+  button, select, input { font: inherit; }
+  button { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  header h1 { font-size: 16px; margin: 0 8px 0 0; }
+  header label { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
+  #dhCity { width: 5em; text-transform: uppercase; }
+  main { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 12px; }
+  @media (min-width: 900px) { main { grid-template-columns: 1fr minmax(320px, 38%); } #selPanel { position: sticky; top: 60px; align-self: start; max-height: calc(100vh - 72px); overflow: auto; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  h2 { font-size: 14px; margin: 0 0 6px; color: var(--muted); }
+  #empty { padding: 40px; text-align: center; color: var(--muted); }
+
+  /* line rows */
+  .row { display: grid; grid-template-columns: 6.5em 1fr; gap: 6px; align-items: center; padding: 3px 0; border-top: 1px solid var(--line); }
+  .row.head { position: sticky; top: 52px; background: var(--panel); z-index: 2; border-top: 0; }
+  .meta { font-size: 12px; line-height: 1.2; }
+  .meta b { font-size: 13px; }
+  .meta small { color: var(--muted); display: block; }
+  .row input[type=checkbox] { width: 18px; height: 18px; margin: 0 6px 0 0; vertical-align: -3px; }
+  .row.dim { opacity: .45; }
+
+  /* calendar bar */
+  .bar { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); height: 28px; position: relative; }
+  .bar .d { grid-row: 1; border-left: 1px solid var(--line); background: #fff; }
+  .bar .d.wknd { background: var(--wknd); }
+  .bar .d.off { background: var(--off); }
+  .head .bar { height: 22px; }
+  .head .d { font-size: 10px; text-align: center; color: var(--muted); cursor: pointer; user-select: none; line-height: 22px; overflow: hidden; }
+  .head .d.off { background: var(--off); color: #b42318; font-weight: 600; }
+  .head .d.pend { box-shadow: inset 0 -2px 0 var(--muted); }
+  .trip { grid-row: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 3px 0; border-radius: 6px; font-size: 9px; line-height: 22px; text-align: center; cursor: pointer; overflow: hidden; position: relative; }
+  .trip span { overflow: hidden; white-space: nowrap; }
+  .trip.front { background: var(--front); color: #fff; }
+  .trip.back { background: var(--back); color: #fff; }
+  .trip.double { background: var(--double); color: #fff; }
+  .trip.none { background: var(--none); }
+  .trip.mid::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; border: 2px solid rgba(0,0,0,.45); }
+
+  /* selected list */
+  #sel { list-style: none; margin: 0; padding: 0; }
+  #sel li { padding: 4px 0; border-top: 1px solid var(--line); background: #fff; }
+  #sel li.line { display: grid; grid-template-columns: 5.5em 1fr auto; gap: 6px; align-items: center; touch-action: none; }
+  #sel li.brk { display: flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 600; font-size: 12px; touch-action: none; }
+  #sel li.brk::before, #sel li.brk::after { content: ""; flex: 1; border-top: 2px dashed var(--line); }
+  #sel li.brk button, #sel li.line button { padding: 2px 6px; font-size: 12px; }
+  #sel li.dim { opacity: .45; }
+  .sortable-ghost { background: var(--sel) !important; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 3px; }
+
+  dialog { border: 0; border-radius: 10px; padding: 0; max-width: min(96vw, 900px); width: 100%; }
+  dialog .body { padding: 12px 16px; }
+  dialog h3 { margin: 0 0 6px; }
+  dialog table { border-collapse: collapse; font-size: 12px; width: 100%; }
+  dialog td, dialog th { padding: 2px 6px; text-align: left; border-bottom: 1px solid var(--line); }
+  dialog tr.dh td { background: #eaf2fd; }
+  dialog pre { font-size: 11px; overflow: auto; background: #f6f7f9; padding: 8px; max-height: 40vh; }
+  dialog textarea { width: 100%; height: 40vh; font-family: ui-monospace, monospace; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; padding: 8px 16px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MattBid</h1>
+  <input type="file" id="file">
+  <span id="title" class="meta"></span>
+  <label>DH city <input id="dhCity" maxlength="4" placeholder="ORD">
+    <select id="dhMode"><option value="exclude">exclude</option><option value="only">only</option></select></label>
+  <label>Days off <select id="daysOffMode"><option value="highlight">highlight</option><option value="hide">hide lines</option></select>
+    <button id="clearDays">clear</button></label>
+  <label>Sort <select id="sort"><option value="line">line #</option><option value="creditDesc">credit ↓</option><option value="creditAsc">credit ↑</option></select></label>
+  <label><input type="checkbox" id="vto"> add 9952 (VTO)</label>
+  <button id="export" class="primary">Export bid</button>
+</header>
+
+<main>
+  <section id="linesPanel">
+    <div class="legend">
+      <span><i style="background:var(--front)"></i>front DH</span>
+      <span><i style="background:var(--back)"></i>back DH</span>
+      <span><i style="background:var(--double)"></i>double DH</span>
+      <span><i style="background:var(--none)"></i>no DH</span>
+      <span>◉ mid-trip DH</span>
+      <span><i style="background:var(--off)"></i>day off (tap a day in the header)</span>
+      <span id="count"></span>
+    </div>
+    <div id="empty">Import a bid package (.asc) to begin.</div>
+    <div id="lines"></div>
+  </section>
+  <section id="selPanel">
+    <h2>Selected <span id="selCount"></span></h2>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <button id="addBreak">+ tier break</button>
+      <button id="clearSel">clear</button>
+    </div>
+    <ul id="sel"></ul>
+  </section>
+</main>
+
+<dialog id="tripDlg"><div class="body" id="tripBody"></div><div class="actions"><button onclick="tripDlg.close()">Close</button></div></dialog>
+<dialog id="exportDlg"><div class="body"><h3>Bid</h3><textarea id="exportText" readonly></textarea></div>
+  <div class="actions"><button id="copyBtn">Copy</button><button id="dlBtn">Download</button><button onclick="exportDlg.close()">Close</button></div></dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js"></script>
+<script src="parse.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+let pkg = null;
+let state = { selected: [], filters: { dhCity: '', dhMode: 'exclude', daysOff: [], daysOffMode: 'highlight' }, sort: 'line' };
+
+// ---------- persistence ----------
+const key = () => 'mattbid:' + (pkg ? pkg.title : '');
+function save() { try { localStorage.setItem(key(), JSON.stringify(state)); } catch (e) {} }
+function load() {
+  try { const s = localStorage.getItem(key()); if (s) state = Object.assign(state, JSON.parse(s)); } catch (e) {}
+  $('#dhCity').value = state.filters.dhCity; $('#dhMode').value = state.filters.dhMode;
+  $('#daysOffMode').value = state.filters.daysOffMode; $('#sort').value = state.sort;
+}
+
+function importText(text) {
+  pkg = parseAsc(text);
+  try { localStorage.setItem('mattbid:asc', text); } catch (e) {} // ponytail: may exceed quota on some browsers; then re-import after reload
+  $('#title').textContent = pkg.title + ' · ' + pkg.lines.length + ' lines';
+  $('#empty').hidden = true;
+  load(); render();
+}
+$('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(importText); });
+
+// ---------- helpers ----------
+const lineByNum = n => pkg.lines.find(l => l.num === n);
+const fmtDay = iso => String(new Date(iso + 'T00:00').getDate()); // weekends are shaded, so the number is enough
+const isWknd = iso => [0, 6].includes(new Date(iso + 'T00:00').getDay());
+function dayText(tokens) { // prefer the airport where the day ends, else the first token
+  const apts = tokens.filter(t => /^[A-Z]{3}$/.test(t));
+  return apts.length ? apts[apts.length - 1] : (tokens[0] || '');
+}
+function lineCities(line) { return new Set(line.trips.flatMap(t => t.dhCities)); }
+function lineWorkDays(line) { const s = new Set(); line.trips.forEach(t => { for (let i = t.startIdx; i <= t.endIdx; i++) s.add(i); }); return s; }
+function passes(line) {
+  const f = state.filters, city = f.dhCity.trim().toUpperCase();
+  if (city) { const has = lineCities(line).has(city); if (f.dhMode === 'exclude' ? has : !has) return false; }
+  if (f.daysOffMode === 'hide' && f.daysOff.length) { const w = lineWorkDays(line); if (f.daysOff.some(d => w.has(d))) return false; }
+  return true;
+}
+function sorted(lines) {
+  const l = lines.slice();
+  if (state.sort === 'creditDesc') l.sort((a, b) => toMinutes(b.credit) - toMinutes(a.credit));
+  if (state.sort === 'creditAsc') l.sort((a, b) => toMinutes(a.credit) - toMinutes(b.credit));
+  return l;
+}
+
+// ---------- rendering ----------
+function barHtml(line, header) {
+  const n = pkg.days.length, off = new Set(state.filters.daysOff);
+  let h = `<div class="bar" style="--n:${n}">`;
+  pkg.days.forEach((d, i) => {
+    const cls = ['d', isWknd(d) && 'wknd', off.has(i) && 'off', header && d > pkg.period.end && 'pend'].filter(Boolean).join(' ');
+    h += `<div class="${cls}" style="grid-column:${i + 1}" data-i="${i}">${header ? fmtDay(d) : ''}</div>`;
+  });
+  if (line) line.trips.forEach((t, ti) => {
+    const cls = ['trip', t.dhKind, t.midDh && 'mid'].filter(Boolean).join(' ');
+    h += `<div class="${cls}" style="grid-column:${t.startIdx + 1}/${t.endIdx + 2}" data-line="${line.num}" data-trip="${ti}" title="Pairing ${t.pairingNum} · ${t.credit}">`;
+    h += t.tokens.map(tk => `<span>${dayText(tk)}</span>`).join('') + '</div>';
+  });
+  return h + '</div>';
+}
+function metaHtml(line, checkbox) {
+  return `<div class="meta">${checkbox ? `<input type="checkbox" data-num="${line.num}" ${state.selected.some(s => s.num === line.num) ? 'checked' : ''}>` : ''}<b>${line.num}</b>${line.flag}
+    <small>CR ${line.credit} · TAFB ${line.tafb}</small><small>${line.daysOff} off · ${line.trips.length} trip${line.trips.length === 1 ? '' : 's'}</small></div>`;
+}
+function render() {
+  if (!pkg) return;
+  const visible = sorted(pkg.lines.filter(passes));
+  $('#count').textContent = `${visible.length} / ${pkg.lines.length} shown`;
+  $('#lines').innerHTML = `<div class="row head"><div class="meta">line</div>${barHtml(null, true)}</div>` +
+    visible.map(l => `<div class="row">${metaHtml(l, true)}${barHtml(l)}</div>`).join('');
+  renderSel();
+  save();
+}
+function renderSel() {
+  let tier = 1;
+  $('#sel').innerHTML = state.selected.map((s, i) => {
+    if (s.t === 'break') return `<li class="brk" data-i="${i}">Tier ${++tier} <button data-rm="${i}">✕</button></li>`;
+    const l = lineByNum(s.num); if (!l) return '';
+    return `<li class="line ${passes(l) ? '' : 'dim'}" data-i="${i}" data-num="${l.num}">${metaHtml(l)}${barHtml(l)}<button data-rm="${i}">✕</button></li>`;
+  }).join('');
+  const n = state.selected.filter(s => s.t === 'line').length;
+  $('#selCount').textContent = n ? `(${n} line${n === 1 ? '' : 's'}, ${tier} tier${tier === 1 ? '' : 's'})` : '';
+}
+
+// ---------- interactions ----------
+$('#lines').addEventListener('click', e => {
+  const trip = e.target.closest('.trip'); if (trip) return showTrip(+trip.dataset.line, +trip.dataset.trip);
+  const day = e.target.closest('.head .d'); if (day) return toggleDay(+day.dataset.i);
+});
+$('#lines').addEventListener('change', e => {
+  const cb = e.target.closest('input[type=checkbox]'); if (!cb) return;
+  const num = +cb.dataset.num;
+  if (cb.checked) state.selected.push({ t: 'line', num }); else state.selected = state.selected.filter(s => s.num !== num);
+  renderSel(); save();
+});
+$('#sel').addEventListener('click', e => {
+  const trip = e.target.closest('.trip'); if (trip) return showTrip(+trip.dataset.line, +trip.dataset.trip);
+  const rm = e.target.closest('[data-rm]'); if (rm) { state.selected.splice(+rm.dataset.rm, 1); render(); }
+});
+Sortable.create($('#sel'), { animation: 120, delay: 120, delayOnTouchOnly: true, onEnd() {
+  const order = [...$('#sel').children].map(li => state.selected[+li.dataset.i]);
+  state.selected = order; renderSel(); save();
+} });
+$('#addBreak').onclick = () => { state.selected.push({ t: 'break' }); renderSel(); save(); };
+$('#clearSel').onclick = () => { if (confirm('Clear the selected list?')) { state.selected = []; render(); } };
+function toggleDay(i) {
+  const d = state.filters.daysOff, k = d.indexOf(i);
+  k >= 0 ? d.splice(k, 1) : d.push(i);
+  render();
+}
+$('#clearDays').onclick = () => { state.filters.daysOff = []; render(); };
+$('#dhCity').oninput = e => { state.filters.dhCity = e.target.value; render(); };
+$('#dhMode').onchange = e => { state.filters.dhMode = e.target.value; render(); };
+$('#daysOffMode').onchange = e => { state.filters.daysOffMode = e.target.value; render(); };
+$('#sort').onchange = e => { state.sort = e.target.value; render(); };
+
+function showTrip(lineNum, ti) {
+  const t = lineByNum(lineNum).trips[ti], p = t.pairing;
+  let h = `<h3>Line ${lineNum} · Pairing ${t.pairingNum} · ${pkg.days[t.startIdx]} → ${pkg.days[t.endIdx]}</h3>`;
+  if (!p) h += '<p>Pairing details not found in the package.</p>';
+  else {
+    h += `<p>Report ${p.report}Z (${p.reportLocal} LT) · ${p.effective.text} · ${p.crew}<br>Credit ${p.credit}${p.creditT ? 'T' : ''} · Block ${p.blk} · ${p.ldgs} ldgs · TAFB ${p.tafb} · DH: ${t.dhKind}${t.midDh ? ' + mid-trip' : ''}</p>`;
+    h += '<table><tr><th>Day</th><th>Flt</th><th>Eqp</th><th>Dep</th><th>Arr</th><th>Blk</th><th></th></tr>' +
+      p.legs.map(l => `<tr class="${l.dh ? 'dh' : ''}"><td>${l.day}</td><td>${l.flt}</td><td>${l.eqp}</td><td>${l.dep} ${l.depZ} (${l.depL})</td><td>${l.arr} ${l.arrZ} (${l.arrL})</td><td>${l.blk}</td><td>${l.dh ? 'DH' : ''} ${l.flags}</td></tr>`).join('') + '</table>';
+    if (p.hotels.length) h += '<p>' + p.hotels.map(x => `${x.layover}: ${x.name}`).join('<br>') + '</p>';
+    h += `<pre>${p.raw.replace(/</g, '&lt;')}</pre>`;
+  }
+  $('#tripBody').innerHTML = h; tripDlg.showModal();
+}
+
+// ---------- export ----------
+function bidText() {
+  const nums = state.selected.filter(s => s.t === 'line').map(s => s.num);
+  if ($('#vto').checked) nums.push(9952);
+  return nums.join('\n');
+}
+$('#export').onclick = () => { $('#exportText').value = bidText(); exportDlg.showModal(); };
+$('#copyBtn').onclick = () => navigator.clipboard.writeText(bidText()).then(() => $('#copyBtn').textContent = 'Copied', () => alert('Copy failed; select the text and copy manually.'));
+$('#dlBtn').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bidText()], { type: 'text/plain' }));
+  a.download = `bid-${(pkg && pkg.title || 'mattbid').replace(/\W+/g, '-')}.txt`; a.click();
+};
+// restore the last imported package (after all helpers are defined)
+let savedAsc = null; try { savedAsc = localStorage.getItem('mattbid:asc'); } catch (e) {}
+if (savedAsc) importText(savedAsc);
+</script>
+</body>
+</html>
