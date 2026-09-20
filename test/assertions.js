@@ -54,7 +54,7 @@
     eq('period.end', r.period.end, '2026-10-25');
     check('title contains OCTOBER 2026', r.title.indexOf('OCTOBER 2026') !== -1, r.title);
 
-    eq('lines.length', r.lines.length, 3);
+    eq('lines.length', r.lines.length, 9);
 
     var line1001 = r.lines.find(function (l) { return l.num === 1001; });
     check('LINE 1001 exists', !!line1001);
@@ -66,6 +66,8 @@
       eq('LINE 1001: trip credit', t.credit, '83:36');
       eq('LINE 1001: trip dhKind', t.dhKind, 'front');
       eq('LINE 1001: trip midDh', t.midDh, false);
+      eq('LINE 1001: stops labels', t.stops.map(function (s) { return s.label; }).join(','),
+        'ANC,CAN,DEL,CAN,DEL,CDG,MEM');
       ['MEM', 'ORD', 'ANC'].forEach(function (city) {
         check('LINE 1001: dhCities contains ' + city, t.dhCities.indexOf(city) !== -1, t.dhCities.join(','));
       });
@@ -101,7 +103,45 @@
       // pairing 105 legs: 5313 (not dh), UA1959 (dh), UA2789 (dh) -> trailing run of 2 dh legs -> 'back'
       eq('LINE 1150: trips[1].dhKind (from pairing 105 legs)', t1.dhKind, 'back');
       eq('LINE 1150: trips[0].endIdx', t0.endIdx, 13);
+      eq('LINE 1150: trips[0] first stop label', t0.stops[0].label, 'CDG');
     }
+
+    var reserveNums = [7001, 7002, 7003, 7004, 7008, 7009];
+    var reserveLines = r.lines.filter(function (l) { return l.reserve; });
+    eq('reserve lines count', reserveLines.length, 6);
+    eq('reserve lines sorted after 1150 and match expected numbers',
+      r.lines.slice(-6).map(function (l) { return l.num; }).join(','), reserveNums.join(','));
+
+    var r7001 = r.lines.find(function (l) { return l.num === 7001; });
+    check('7001 exists', !!r7001);
+    if (r7001) {
+      eq('7001: letter', r7001.letter, 'R');
+      eq('7001: credit', r7001.credit, '80:00');
+      eq('7001: trips[0].startIdx', r7001.trips[0].startIdx, 0);
+      eq('7001: trips[0].endIdx', r7001.trips[0].endIdx, 6);
+      eq('7001: daysOff', r7001.daysOff, 37 - r7001.trips.reduce(function (acc, t) { return acc + (t.endIdx - t.startIdx + 1); }, 0));
+    }
+
+    eq('pkg.rlg', r.rlg, '80:00');
+
+    var r7008 = r.lines.find(function (l) { return l.num === 7008; });
+    var r7009 = r.lines.find(function (l) { return l.num === 7009; });
+    check('7008 and 7009 exist', !!r7008 && !!r7009);
+    if (r7008 && r7009) {
+      eq('7008: letter', r7008.letter, 'A');
+      eq('7008 and 7009: equal letter', r7008.letter, r7009.letter);
+      eq('7008 and 7009: equal trips', JSON.stringify(r7008.trips), JSON.stringify(r7009.trips));
+    }
+
+    var noBadStopLabels = true;
+    r.lines.forEach(function (line) {
+      line.trips.forEach(function (trip) {
+        trip.stops.forEach(function (s) {
+          if (s.label === 'D/H' || s.label === '=>' || /^\d+$/.test(s.label)) noBadStopLabels = false;
+        });
+      });
+    });
+    check('no stop label is D/H, =>, or numeric', noBadStopLabels);
 
     r.lines.forEach(function (line) {
       line.trips.forEach(function (trip) {

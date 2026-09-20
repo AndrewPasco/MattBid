@@ -7,8 +7,8 @@
 <style>
   :root {
     --bg: #f6f7f9; --panel: #fff; --ink: #1b1f24; --muted: #667085; --line: #e3e6ea;
-    --front: #4a90e2; --back: #4caf50; --double: #ff9800; --none: #ffd54f;
-    --off: #fde2e4; --wknd: #f0f2f5; --sel: #e8f0fe;
+    --front: #4a90e2; --back: #4caf50; --double: #ff9800; --none: #ffd54f; --rsv: #b0b8c4;
+    --off: #fde2e4; --wknd: #f0f2f5; --sel: #e8f0fe; --hdr: 52px;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.4 -apple-system, system-ui, sans-serif; color: var(--ink); background: var(--bg); }
@@ -19,6 +19,7 @@
   header h1 { font-size: 16px; margin: 0 8px 0 0; }
   header label { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
   #dhCity { width: 5em; text-transform: uppercase; }
+  #month:empty { display: none; }
   main { display: grid; gap: 12px; padding: 12px; }
   #selPanel[hidden] { display: none; }
   section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
@@ -27,15 +28,14 @@
 
   /* line rows */
   .row { display: grid; grid-template-columns: 6.5em 1fr; gap: 6px; align-items: center; padding: 3px 0; border-top: 1px solid var(--line); }
-  .row.head { position: sticky; top: 52px; background: var(--panel); z-index: 2; border-top: 0; }
+  .row.head { position: sticky; top: var(--hdr); background: var(--panel); z-index: 2; border-top: 0; }
   .meta { font-size: 12px; line-height: 1.2; }
   .meta b { font-size: 13px; }
   .meta small { color: var(--muted); display: block; }
   .row input[type=checkbox] { width: 18px; height: 18px; margin: 0 6px 0 0; vertical-align: -3px; }
-  .row.dim { opacity: .45; }
 
   /* calendar bar */
-  .bar { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); height: 28px; position: relative; }
+  .bar { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); height: 42px; position: relative; }
   .bar .d { grid-row: 1; border-left: 1px solid var(--line); background: #fff; }
   .bar .d.wknd { background: var(--wknd); }
   .bar .d.off { background: var(--off); }
@@ -43,12 +43,16 @@
   .head .d { font-size: 10px; text-align: center; color: var(--muted); cursor: pointer; user-select: none; line-height: 22px; overflow: hidden; }
   .head .d.off { background: var(--off); color: #b42318; font-weight: 600; }
   .head .d.pend { box-shadow: inset 0 -2px 0 var(--muted); }
-  .trip { grid-row: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 3px 0; border-radius: 6px; font-size: 9px; line-height: 22px; text-align: center; cursor: pointer; overflow: hidden; position: relative; }
-  .trip span { overflow: hidden; white-space: nowrap; }
+  .trip { grid-row: 1; margin: 3px 0; border-radius: 6px; font-size: 10px; line-height: 17px; cursor: pointer; overflow: hidden; position: relative; padding: 1px 0; }
+  .trip .t1 { padding: 0 4px; font-weight: 600; white-space: nowrap; overflow: hidden; }
+  .trip .t2 { display: grid; grid-template-columns: repeat(var(--w), minmax(0, 1fr)); text-align: center; }
+  .trip .t2 span { overflow: hidden; white-space: nowrap; border-left: 1px solid rgba(255,255,255,.35); }
+  .trip .t2 span:first-child { border-left: 0; }
   .trip.front { background: var(--front); color: #fff; }
   .trip.back { background: var(--back); color: #fff; }
   .trip.double { background: var(--double); color: #fff; }
   .trip.none { background: var(--none); }
+  .trip.rsv { background: var(--rsv); color: #fff; }
   .trip.mid::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; border: 2px solid rgba(0,0,0,.45); }
 
   /* selected list */
@@ -57,6 +61,7 @@
   #sel li.line { display: grid; grid-template-columns: 6.5em 1fr auto; gap: 6px; align-items: center; touch-action: none; }
   #sel li.brk { display: flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 600; font-size: 12px; touch-action: none; }
   #sel li.brk::before, #sel li.brk::after { content: ""; flex: 1; border-top: 2px dashed var(--line); }
+  #sel li.brk .name { cursor: pointer; text-decoration: underline dotted; }
   #sel li.brk button, #sel li.line button { padding: 2px 6px; font-size: 12px; }
   #sel li.dim { opacity: .45; }
   .sortable-ghost { background: var(--sel) !important; }
@@ -77,13 +82,15 @@
 <body>
 <header>
   <h1>MattBid</h1>
-  <input type="file" id="file">
-  <span id="title" class="meta"></span>
+  <select id="month" title="Stored months"></select>
+  <button id="delMonth" title="Forget this month" hidden>✕</button>
+  <input type="file" id="file" title="Import a bid package (.asc)">
   <label>DH city <input id="dhCity" maxlength="4" placeholder="ORD">
     <select id="dhMode"><option value="exclude">exclude</option><option value="only">only</option></select></label>
   <label>Days off <select id="daysOffMode"><option value="highlight">highlight</option><option value="hide">hide lines</option></select>
     <button id="clearDays">clear</button></label>
   <label>Sort <select id="sort"><option value="line">line #</option><option value="creditDesc">credit ↓</option><option value="creditAsc">credit ↑</option></select></label>
+  <label><input type="checkbox" id="showReserve" checked> show reserve</label>
   <label><input type="checkbox" id="vto"> add 9952 (VTO)</label>
   <button id="export" class="primary">Export bid</button>
 </header>
@@ -95,6 +102,7 @@
       <button id="addBreak">+ tier break</button>
       <button id="clearSel">clear</button>
     </div>
+    <div id="selHead"></div>
     <ul id="sel"></ul>
   </section>
   <section id="linesPanel">
@@ -103,6 +111,7 @@
       <span><i style="background:var(--back)"></i>back DH</span>
       <span><i style="background:var(--double)"></i>double DH</span>
       <span><i style="background:var(--none)"></i>no DH</span>
+      <span><i style="background:var(--rsv)"></i>reserve</span>
       <span>◉ mid-trip DH</span>
       <span><i style="background:var(--off)"></i>day off (tap a day in the header)</span>
       <span id="count"></span>
@@ -121,46 +130,92 @@
 <script>
 const $ = s => document.querySelector(s);
 let pkg = null;
-let state = { selected: [], filters: { dhCity: '', dhMode: 'exclude', daysOff: [], daysOffMode: 'highlight' }, sort: 'line' };
+const freshState = () => ({ selected: [], filters: { dhCity: '', dhMode: 'exclude', daysOff: [], daysOffMode: 'highlight' }, sort: 'line', showReserve: true });
+let state = freshState();
 
-// ---------- persistence ----------
+// ---------- per-month state (localStorage, small) ----------
 const key = () => 'mattbid:' + (pkg ? pkg.title : '');
 function save() { try { localStorage.setItem(key(), JSON.stringify(state)); } catch (e) {} }
 function load() {
-  try { const s = localStorage.getItem(key()); if (s) state = Object.assign(state, JSON.parse(s)); } catch (e) {}
+  state = freshState();
+  try { const s = localStorage.getItem(key()); if (s) Object.assign(state, JSON.parse(s)); } catch (e) {}
   $('#dhCity').value = state.filters.dhCity; $('#dhMode').value = state.filters.dhMode;
   $('#daysOffMode').value = state.filters.daysOffMode; $('#sort').value = state.sort;
+  $('#showReserve').checked = state.showReserve;
 }
 
-function importText(text) {
+// ---------- package store (IndexedDB, one record per month) ----------
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('mattbid', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('packages', { keyPath: 'title' });
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function store(mode, fn) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('packages', mode), req = fn(tx.objectStore('packages'));
+    tx.oncomplete = () => res(req && req.result); tx.onerror = () => rej(tx.error);
+  });
+}
+const pkgPut = rec => store('readwrite', s => s.put(rec));
+const pkgGet = title => store('readonly', s => s.get(title));
+const pkgAll = () => store('readonly', s => s.getAll());
+const pkgDelete = title => store('readwrite', s => s.delete(title));
+
+async function refreshMonths() {
+  const all = (await pkgAll()).sort((a, b) => (b.openedAt || 0) - (a.openedAt || 0));
+  $('#month').innerHTML = all.map(r => {
+    let n = 0; try { n = (JSON.parse(localStorage.getItem('mattbid:' + r.title) || '{}').selected || []).filter(s => s.t === 'line').length; } catch (e) {}
+    return `<option value="${r.title}" ${pkg && r.title === pkg.title ? 'selected' : ''}>${r.title}${n ? ` · ${n} selected` : ''}</option>`;
+  }).join('');
+  $('#delMonth').hidden = !pkg;
+}
+function show(text) {
   pkg = parseAsc(text);
-  try { localStorage.setItem('mattbid:asc', text); } catch (e) {} // ponytail: may exceed quota on some browsers; then re-import after reload
-  $('#title').textContent = pkg.title + ' · ' + pkg.lines.length + ' lines';
   $('#empty').hidden = true;
   load(); render();
 }
-$('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(importText); });
+async function importText(text) {
+  show(text);
+  await pkgPut({ title: pkg.title, text, savedAt: Date.now(), openedAt: Date.now() });
+  localStorage.setItem('mattbid:last', pkg.title);
+  await refreshMonths();
+}
+async function openMonth(title) {
+  const rec = await pkgGet(title); if (!rec) return;
+  show(rec.text);
+  rec.openedAt = Date.now(); await pkgPut(rec);
+  localStorage.setItem('mattbid:last', title);
+  refreshMonths();
+}
+$('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(importText); e.target.value = ''; });
+$('#month').onchange = e => openMonth(e.target.value);
+$('#delMonth').onclick = async () => {
+  if (!pkg || !confirm(`Forget ${pkg.title} and its selections?`)) return;
+  await pkgDelete(pkg.title); localStorage.removeItem(key()); localStorage.removeItem('mattbid:last');
+  pkg = null; $('#lines').innerHTML = ''; $('#empty').hidden = false; $('#selPanel').hidden = true; $('#count').textContent = '';
+  refreshMonths();
+};
 
 // ---------- helpers ----------
 const lineByNum = n => pkg.lines.find(l => l.num === n);
 const fmtDay = iso => String(new Date(iso + 'T00:00').getDate()); // weekends are shaded, so the number is enough
 const isWknd = iso => [0, 6].includes(new Date(iso + 'T00:00').getDay());
-function dayText(tokens) { // prefer the airport where the day ends, else the first token
-  const apts = tokens.filter(t => /^[A-Z]{3}$/.test(t));
-  return apts.length ? apts[apts.length - 1] : (tokens[0] || '');
-}
 function lineCities(line) { return new Set(line.trips.flatMap(t => t.dhCities)); }
 function lineWorkDays(line) { const s = new Set(); line.trips.forEach(t => { for (let i = t.startIdx; i <= t.endIdx; i++) s.add(i); }); return s; }
 function passes(line) {
   const f = state.filters, city = f.dhCity.trim().toUpperCase();
+  if (line.reserve && !state.showReserve) return false;
   if (city) { const has = lineCities(line).has(city); if (f.dhMode === 'exclude' ? has : !has) return false; }
   if (f.daysOffMode === 'hide' && f.daysOff.length) { const w = lineWorkDays(line); if (f.daysOff.some(d => w.has(d))) return false; }
   return true;
 }
 function sorted(lines) {
-  const l = lines.slice();
-  if (state.sort === 'creditDesc') l.sort((a, b) => toMinutes(b.credit) - toMinutes(a.credit));
-  if (state.sort === 'creditAsc') l.sort((a, b) => toMinutes(a.credit) - toMinutes(b.credit));
+  const l = lines.slice(), m = x => x.credit ? toMinutes(x.credit) : 0;
+  if (state.sort === 'creditDesc') l.sort((a, b) => m(b) - m(a));
+  if (state.sort === 'creditAsc') l.sort((a, b) => m(a) - m(b));
   return l;
 }
 
@@ -173,42 +228,50 @@ function barHtml(line, header) {
     h += `<div class="${cls}" style="grid-column:${i + 1}" data-i="${i}">${header ? fmtDay(d) : ''}</div>`;
   });
   if (line) line.trips.forEach((t, ti) => {
-    const cls = ['trip', t.dhKind, t.midDh && 'mid'].filter(Boolean).join(' ');
-    h += `<div class="${cls}" style="grid-column:${t.startIdx + 1}/${t.endIdx + 2}" data-line="${line.num}" data-trip="${ti}" title="Pairing ${t.pairingNum} · ${t.credit}">`;
-    h += t.tokens.map(tk => `<span>${dayText(tk)}</span>`).join('') + '</div>';
+    const cls = ['trip', t.reserve ? 'rsv' : t.dhKind, t.midDh && 'mid'].filter(Boolean).join(' ');
+    const w = t.endIdx - t.startIdx + 1, top = t.reserve ? `Reserve ${t.letter}` : `${t.pairingNum} · ${t.credit}`;
+    h += `<div class="${cls}" style="grid-column:${t.startIdx + 1}/${t.endIdx + 2}" data-line="${line.num}" data-trip="${ti}" title="${top}">`;
+    h += `<div class="t1">${top}</div><div class="t2" style="--w:${w}">` +
+      (t.stops || []).map(s => `<span style="grid-column:span ${s.endIdx - s.startIdx + 1}">${s.label}</span>`).join('') + '</div></div>';
   });
   return h + '</div>';
 }
 function metaHtml(line, checkbox) {
+  const l2 = line.reserve ? `reserve ${line.letter} · RLG ${line.credit}` : `CR ${line.credit} · TAFB ${line.tafb}`;
+  const l3 = line.reserve ? `${line.daysOff} off` : `${line.daysOff} off · ${line.trips.length} trip${line.trips.length === 1 ? '' : 's'}`;
   return `<div class="meta">${checkbox ? `<input type="checkbox" data-num="${line.num}" ${state.selected.some(s => s.num === line.num) ? 'checked' : ''}>` : ''}<b>${line.num}</b>${line.flag}
-    <small>CR ${line.credit} · TAFB ${line.tafb}</small><small>${line.daysOff} off · ${line.trips.length} trip${line.trips.length === 1 ? '' : 's'}</small></div>`;
+    <small>${l2}</small><small>${l3}</small></div>`;
 }
+const headRow = () => `<div class="row head"><div class="meta">line</div>${barHtml(null, true)}</div>`;
 function render() {
   if (!pkg) return;
   const visible = sorted(pkg.lines.filter(passes));
   $('#count').textContent = `${visible.length} / ${pkg.lines.length} shown`;
-  $('#lines').innerHTML = `<div class="row head"><div class="meta">line</div>${barHtml(null, true)}</div>` +
-    visible.map(l => `<div class="row">${metaHtml(l, true)}${barHtml(l)}</div>`).join('');
+  $('#lines').innerHTML = headRow() + visible.map(l => `<div class="row">${metaHtml(l, true)}${barHtml(l)}</div>`).join('');
   renderSel();
   save();
 }
 function renderSel() {
   let tier = 1;
   $('#sel').innerHTML = state.selected.map((s, i) => {
-    if (s.t === 'break') return `<li class="brk" data-i="${i}">Tier ${++tier} <button data-rm="${i}">✕</button></li>`;
+    if (s.t === 'break') return `<li class="brk" data-i="${i}"><span class="name" data-name="${i}">${s.name || 'Tier ' + (++tier)}</span> <button data-rm="${i}">✕</button></li>`;
     const l = lineByNum(s.num); if (!l) return '';
     return `<li class="line ${passes(l) ? '' : 'dim'}" data-i="${i}" data-num="${l.num}">${metaHtml(l)}${barHtml(l)}<button data-rm="${i}">✕</button></li>`;
   }).join('');
-  const n = state.selected.filter(s => s.t === 'line').length;
+  const n = state.selected.filter(s => s.t === 'line').length, tiers = state.selected.filter(s => s.t === 'break').length + 1;
   $('#selPanel').hidden = state.selected.length === 0;
-  $('#selCount').textContent = n ? `(${n} line${n === 1 ? '' : 's'}, ${tier} tier${tier === 1 ? '' : 's'})` : '';
+  $('#selHead').innerHTML = state.selected.length ? headRow() : '';
+  $('#selCount').textContent = n ? `(${n} line${n === 1 ? '' : 's'}, ${tiers} tier${tiers === 1 ? '' : 's'})` : '';
 }
+new ResizeObserver(() => document.documentElement.style.setProperty('--hdr', $('header').offsetHeight + 'px')).observe($('header'));
 
 // ---------- interactions ----------
-$('#lines').addEventListener('click', e => {
+function onDayOrTrip(e) {
   const trip = e.target.closest('.trip'); if (trip) return showTrip(+trip.dataset.line, +trip.dataset.trip);
   const day = e.target.closest('.head .d'); if (day) return toggleDay(+day.dataset.i);
-});
+}
+$('#lines').addEventListener('click', onDayOrTrip);
+$('#selHead').addEventListener('click', onDayOrTrip);
 $('#lines').addEventListener('change', e => {
   const cb = e.target.closest('input[type=checkbox]'); if (!cb) return;
   const num = +cb.dataset.num;
@@ -216,8 +279,10 @@ $('#lines').addEventListener('change', e => {
   renderSel(); save();
 });
 $('#sel').addEventListener('click', e => {
-  const trip = e.target.closest('.trip'); if (trip) return showTrip(+trip.dataset.line, +trip.dataset.trip);
-  const rm = e.target.closest('[data-rm]'); if (rm) { state.selected.splice(+rm.dataset.rm, 1); render(); }
+  const nm = e.target.closest('[data-name]');
+  if (nm) { const b = state.selected[+nm.dataset.name], v = prompt('Tier name', b.name || nm.textContent); if (v !== null) { b.name = v.trim(); renderSel(); save(); } return; }
+  const rm = e.target.closest('[data-rm]'); if (rm) { state.selected.splice(+rm.dataset.rm, 1); render(); return; }
+  onDayOrTrip(e);
 });
 Sortable.create($('#sel'), { animation: 120, delay: 120, delayOnTouchOnly: true, onEnd() {
   const order = [...$('#sel').children].map(li => state.selected[+li.dataset.i]);
@@ -235,17 +300,22 @@ $('#dhCity').oninput = e => { state.filters.dhCity = e.target.value; render(); }
 $('#dhMode').onchange = e => { state.filters.dhMode = e.target.value; render(); };
 $('#daysOffMode').onchange = e => { state.filters.daysOffMode = e.target.value; render(); };
 $('#sort').onchange = e => { state.sort = e.target.value; render(); };
+$('#showReserve').onchange = e => { state.showReserve = e.target.checked; render(); };
 
 function showTrip(lineNum, ti) {
   const t = lineByNum(lineNum).trips[ti], p = t.pairing;
-  let h = `<h3>Line ${lineNum} · Pairing ${t.pairingNum} · ${pkg.days[t.startIdx]} → ${pkg.days[t.endIdx]}</h3>`;
-  if (!p) h += '<p>Pairing details not found in the package.</p>';
+  let h;
+  if (t.reserve) h = `<h3>Line ${lineNum} · Reserve ${t.letter} · ${pkg.days[t.startIdx]} → ${pkg.days[t.endIdx]}</h3>`;
   else {
-    h += `<p>Report ${p.report}Z (${p.reportLocal} LT) · ${p.effective.text} · ${p.crew}<br>Credit ${p.credit}${p.creditT ? 'T' : ''} · Block ${p.blk} · ${p.ldgs} ldgs · TAFB ${p.tafb} · DH: ${t.dhKind}${t.midDh ? ' + mid-trip' : ''}</p>`;
-    h += '<table><tr><th>Day</th><th>Flt</th><th>Eqp</th><th>Dep</th><th>Arr</th><th>Blk</th><th></th></tr>' +
-      p.legs.map(l => `<tr class="${l.dh ? 'dh' : ''}"><td>${l.day}</td><td>${l.flt}</td><td>${l.eqp}</td><td>${l.dep} ${l.depZ} (${l.depL})</td><td>${l.arr} ${l.arrZ} (${l.arrL})</td><td>${l.blk}</td><td>${l.dh ? 'DH' : ''} ${l.flags}</td></tr>`).join('') + '</table>';
-    if (p.hotels.length) h += '<p>' + p.hotels.map(x => `${x.layover}: ${x.name}`).join('<br>') + '</p>';
-    h += `<pre>${p.raw.replace(/</g, '&lt;')}</pre>`;
+    h = `<h3>Line ${lineNum} · Pairing ${t.pairingNum} · ${pkg.days[t.startIdx]} → ${pkg.days[t.endIdx]}</h3>`;
+    if (!p) h += '<p>Pairing details not found in the package.</p>';
+    else {
+      h += `<p>Report ${p.report}Z (${p.reportLocal} LT) · ${p.effective.text} · ${p.crew}<br>Credit ${p.credit}${p.creditT ? 'T' : ''} · Block ${p.blk} · ${p.ldgs} ldgs · TAFB ${p.tafb} · DH: ${t.dhKind}${t.midDh ? ' + mid-trip' : ''}</p>`;
+      h += '<table><tr><th>Day</th><th>Flt</th><th>Eqp</th><th>Dep</th><th>Arr</th><th>Blk</th><th></th></tr>' +
+        p.legs.map(l => `<tr class="${l.dh ? 'dh' : ''}"><td>${l.day}</td><td>${l.flt}</td><td>${l.eqp}</td><td>${l.dep} ${l.depZ} (${l.depL})</td><td>${l.arr} ${l.arrZ} (${l.arrL})</td><td>${l.blk}</td><td>${l.dh ? 'DH' : ''} ${l.flags}</td></tr>`).join('') + '</table>';
+      if (p.hotels.length) h += '<p>' + p.hotels.map(x => `${x.layover}: ${x.name}`).join('<br>') + '</p>';
+      h += `<pre>${p.raw.replace(/</g, '&lt;')}</pre>`;
+    }
   }
   $('#tripBody').innerHTML = h; tripDlg.showModal();
 }
@@ -263,9 +333,14 @@ $('#dlBtn').onclick = () => {
   a.href = URL.createObjectURL(new Blob([bidText()], { type: 'text/plain' }));
   a.download = `bid-${(pkg && pkg.title || 'mattbid').replace(/\W+/g, '-')}.txt`; a.click();
 };
-// restore the last imported package (after all helpers are defined)
-let savedAsc = null; try { savedAsc = localStorage.getItem('mattbid:asc'); } catch (e) {}
-if (savedAsc) importText(savedAsc);
+
+// ---------- startup: migrate the v0 single-package key, then open the last month ----------
+(async () => {
+  let old = null; try { old = localStorage.getItem('mattbid:asc'); } catch (e) {}
+  if (old) { await importText(old); localStorage.removeItem('mattbid:asc'); return; }
+  const last = localStorage.getItem('mattbid:last');
+  if (last) await openMonth(last); else refreshMonths();
+})();
 </script>
 </body>
 </html>

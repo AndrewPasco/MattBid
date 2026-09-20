@@ -30,12 +30,18 @@ function main() {
   var realText = fs.readFileSync(realPath, 'utf8');
   var real = global.parseAsc(realText);
 
+  var calLines = real.lines.filter(function (l) { return !l.reserve; });
+  var reserveLines = real.lines.filter(function (l) { return l.reserve; });
+
   console.log('\n--- full file checks ---');
-  console.log('lines count: ' + real.lines.length + ' (expect 283)');
+  console.log('lines count: ' + calLines.length + ' (expect 283)');
   console.log('pairings count: ' + real.pairings.size + ' (expect 874)');
+  console.log('reserve lines count: ' + reserveLines.length + ' (expect 52)');
+  var blankLetterLines = reserveLines.filter(function (l) { return !l.letter; });
+  console.log('reserve lines with blank letter: ' + blankLetterLines.length + ' (expect 0)');
 
   var trips = [];
-  real.lines.forEach(function (line) {
+  calLines.forEach(function (line) {
     line.trips.forEach(function (trip) { trips.push({ line: line, trip: trip }); });
   });
   console.log('trips: ' + trips.length);
@@ -49,7 +55,7 @@ function main() {
   }
 
   var mismatches = [];
-  real.lines.forEach(function (line) {
+  calLines.forEach(function (line) {
     var sumMinutes = line.trips.reduce(function (acc, t) {
       return acc + (t.credit ? global.toMinutes(t.credit) : 0);
     }, 0);

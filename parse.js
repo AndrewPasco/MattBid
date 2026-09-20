@@ -195,6 +195,28 @@
     return { dhKind: kind, midDh: mid, dhCities: [] };
   }
 
+  /** Per-day stop label from a trip's grid tokens, merged into {label, startIdx, endIdx} runs. */
+  function computeStops(tokens, pairing, startIdx) {
+    var labels = tokens.map(function (dayTokens) {
+      var label = '';
+      dayTokens.forEach(function (tok) { if (/^[A-Z]{3}$/.test(tok)) label = tok; });
+      return label;
+    });
+    var trailing = pairing ? pairing.legs[pairing.legs.length - 1].arr : '';
+    var nextLabel = trailing;
+    for (var i = labels.length - 1; i >= 0; i--) {
+      if (labels[i] === '') labels[i] = nextLabel;
+      else nextLabel = labels[i];
+    }
+    var stops = [];
+    labels.forEach(function (label, j) {
+      var last = stops[stops.length - 1];
+      if (last && last.label === label) last.endIdx = startIdx + j;
+      else stops.push({ label: label, startIdx: startIdx + j, endIdx: startIdx + j });
+    });
+    return stops;
+  }
+
   function parseCaptainSection(sectionLines, pairings) {
     var titleIdx = -1;
     for (var i = 0; i < sectionLines.length; i++) {
@@ -276,6 +298,7 @@
           startIdx: ts.day,
           endIdx: endIdx,
           tokens: tokens,
+          stops: computeStops(tokens, pairing, ts.day),
           pairing: pairing,
           dhKind: dh.dhKind,
           midDh: dh.midDh,
@@ -300,6 +323,83 @@
     return { period: period, days: days, lines: lines };
   }
 
+  var RESERVE_ROW_RE = /^ *(\d{4})(?:-(\d{4}))? *\|(.*)$/;
+
+  /** Single reserve-grid cell: the letter at day N (or '' when the day is off). */
+  function reserveCellAt(row, n) {
+    var ch = row.charAt(11 + 3 * n);
+    return ch === ' ' ? '' : ch;
+  }
+
+  function buildReserveLine(num, row, numDays, credit) {
+    var cells = [];
+    for (var n = 0; n < numDays; n++) cells.push(reserveCellAt(row, n));
+    var letter = '';
+    for (var i = 0; i < cells.length; i++) {
+      if (cells[i]) { letter = cells[i]; break; }
+    }
+
+    var offDays = [];
+    var trips = [];
+    var d = 0;
+    while (d < cells.length) {
+      if (!cells[d]) { offDays.push(d); d++; continue; }
+      var start = d;
+      while (d + 1 < cells.length && cells[d + 1]) d++;
+      trips.push({
+        reserve: true,
+        letter: letter,
+        pairingNum: null,
+        credit: '',
+        startIdx: start,
+        endIdx: d,
+        tokens: [],
+        stops: [{ label: letter, startIdx: start, endIdx: d }],
+        pairing: null,
+        dhKind: 'none',
+        midDh: false,
+        dhCities: [],
+      });
+      d++;
+    }
+
+    return {
+      num: num,
+      reserve: true,
+      letter: letter,
+      credit: credit,
+      tafb: '',
+      blk: '',
+      landings: 0,
+      flag: '',
+      offDays: offDays,
+      daysOff: offDays.length,
+      trips: trips,
+      rows: [row],
+    };
+  }
+
+  /** Parse the Captain reserve grid (block after the 3rd ######); [] when the file has none. */
+  function parseReserveLines(sectionLines, numDays, credit) {
+    var dateRowIdx = -1;
+    for (var i = 0; i < sectionLines.length; i++) {
+      if (/^ *Captain \|/.test(sectionLines[i])) { dateRowIdx = i; break; }
+    }
+    if (dateRowIdx === -1) return [];
+
+    var result = [];
+    for (var k = dateRowIdx + 2; k < sectionLines.length; k++) {
+      var rm = sectionLines[k].match(RESERVE_ROW_RE);
+      if (!rm) continue;
+      var lo = Number(rm[1]);
+      var hi = rm[2] ? Number(rm[2]) : lo;
+      for (var num = lo; num <= hi; num++) {
+        result.push(buildReserveLine(num, sectionLines[k], numDays, credit));
+      }
+    }
+    return result;
+  }
+
   function parseAsc(text) {
     var lines = text.split(/\r?\n/);
     var tm = lines[0].match(/Report for (\S+) schedule (\S+) (\d{4})\s+([A-Z]+) BASE/);
@@ -315,12 +415,19 @@
     var pairings = parsePairings(section1, titleMonthIdx, year);
     var cal = parseCaptainSection(section2, pairings);
 
+    var reserveSection = hashIdxs.length > 2 ? lines.slice(hashIdxs[2] + 1, hashIdxs[3]) : [];
+    var summaryTail = hashIdxs.length > 4 ? lines.slice(hashIdxs[4] + 1).join('\n') : '';
+    var rlgM = summaryTail.match(/CAP RLG\s+(\d+:\d\d)/);
+    var rlg = rlgM ? rlgM[1] : '';
+    var reserveLines = parseReserveLines(reserveSection, cal.days.length, rlg);
+
     return {
       title: title,
       period: cal.period,
       days: cal.days,
       pairings: pairings,
-      lines: cal.lines,
+      lines: cal.lines.concat(reserveLines),
+      rlg: rlg,
       seat: 'CAP',
     };
   }

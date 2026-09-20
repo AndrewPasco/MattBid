@@ -16,5 +16,14 @@ SRC="$1"; OUT="$(dirname "$0")/fixture.asc"
   echo '######'
   grep -m1 'First Officer ONLY' "$SRC"
   echo '######'
+  awk '/MEM 77C Reserve Lines/ {t=1; n=5} n>0 {print; n--}' "$SRC"
+  for N in 7001 7002 7003 7004; do
+    grep -E "^ *${N} *\|" "$SRC"
+  done
+  grep -E '^ *7008-7009 *\|' "$SRC"
+  echo '######'
+  grep -m1 'MEM 77F Reserve Lines' "$SRC"
+  echo '######'
+  awk '/^CAP VTO LINES/ {f=1} f {print} f && /^F\/O RDay Value/ {exit}' "$SRC"
 } > "$OUT"
 echo "wrote $OUT ($(wc -l < "$OUT") lines)"
