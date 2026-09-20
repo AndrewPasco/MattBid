@@ -196,14 +196,22 @@
   }
 
   /** Per-day stop label from a trip's grid tokens, merged into {label, startIdx, endIdx} runs. */
+  /**
+   * Collapse a trip's days into stops. A stop is an arrival day (plus the transit days of the
+   * leg that lands there) followed by layover days with no flying. A day that flies and lands
+   * in the same city again (an out-and-back) starts a new stop, so it never merges away.
+   */
   function computeStops(tokens, pairing, startIdx) {
-    var labels = tokens.map(function (dayTokens) {
+    var arrival = tokens.map(function (dayTokens) {
       var label = '';
       dayTokens.forEach(function (tok) { if (/^[A-Z]{3}$/.test(tok)) label = tok; });
       return label;
     });
-    var trailing = pairing ? pairing.legs[pairing.legs.length - 1].arr : '';
-    var nextLabel = trailing;
+    var moved = tokens.map(function (dayTokens) {
+      return dayTokens.some(function (tok) { return /^\d{3,4}$/.test(tok) || tok === 'D/H'; });
+    });
+    var labels = arrival.slice();
+    var nextLabel = pairing ? pairing.legs[pairing.legs.length - 1].arr : '';
     for (var i = labels.length - 1; i >= 0; i--) {
       if (labels[i] === '') labels[i] = nextLabel;
       else nextLabel = labels[i];
@@ -211,7 +219,9 @@
     var stops = [];
     labels.forEach(function (label, j) {
       var last = stops[stops.length - 1];
-      if (last && last.label === label) last.endIdx = startIdx + j;
+      var prevTransit = j > 0 && arrival[j - 1] === '';
+      var newArrival = moved[j] && arrival[j] !== '' && !prevTransit;
+      if (last && last.label === label && !newArrival) last.endIdx = startIdx + j;
       else stops.push({ label: label, startIdx: startIdx + j, endIdx: startIdx + j });
     });
     return stops;

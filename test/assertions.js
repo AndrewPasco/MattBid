@@ -3,6 +3,24 @@
  * Exposes runAssertions(parsed) -> [{name, pass, detail}].
  */
 (function (global) {
+  global.hiddenArrivalDays = function (lines) {
+    var n = 0;
+    lines.forEach(function (line) {
+      if (line.reserve) return;
+      line.trips.forEach(function (t) {
+        var apt = function (tk) { return tk.some(function (x) { return /^[A-Z]{3}$/.test(x); }); };
+        var mv = function (tk) { return tk.some(function (x) { return /^\d{3,4}$/.test(x) || x === 'D/H'; }); };
+        t.stops.forEach(function (s) {
+          for (var d = s.startIdx + 1; d <= s.endIdx; d++) {
+            var tk = t.tokens[d - t.startIdx], prev = t.tokens[d - 1 - t.startIdx];
+            if (apt(tk) && mv(tk) && apt(prev)) n++;
+          }
+        });
+      });
+    });
+    return n;
+  };
+
   'use strict';
 
   function runAssertions(r) {
@@ -142,6 +160,7 @@
       });
     });
     check('no stop label is D/H, =>, or numeric', noBadStopLabels);
+    eq('no stop hides an out-and-back arrival day', global.hiddenArrivalDays(r.lines), 0);
 
     r.lines.forEach(function (line) {
       line.trips.forEach(function (trip) {

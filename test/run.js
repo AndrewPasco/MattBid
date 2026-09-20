@@ -39,6 +39,7 @@ function main() {
   console.log('reserve lines count: ' + reserveLines.length + ' (expect 52)');
   var blankLetterLines = reserveLines.filter(function (l) { return !l.letter; });
   console.log('reserve lines with blank letter: ' + blankLetterLines.length + ' (expect 0)');
+  console.log('stops hiding an out-and-back arrival day: ' + global.hiddenArrivalDays(real.lines) + ' (expect 0)');
 
   var trips = [];
   calLines.forEach(function (line) {
