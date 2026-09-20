@@ -19,8 +19,8 @@
   header h1 { font-size: 16px; margin: 0 8px 0 0; }
   header label { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
   #dhCity { width: 5em; text-transform: uppercase; }
-  main { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 12px; }
-  @media (min-width: 900px) { main { grid-template-columns: 1fr minmax(320px, 38%); } #selPanel { position: sticky; top: 60px; align-self: start; max-height: calc(100vh - 72px); overflow: auto; } }
+  main { display: grid; gap: 12px; padding: 12px; }
+  #selPanel[hidden] { display: none; }
   section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
   h2 { font-size: 14px; margin: 0 0 6px; color: var(--muted); }
   #empty { padding: 40px; text-align: center; color: var(--muted); }
@@ -54,7 +54,7 @@
   /* selected list */
   #sel { list-style: none; margin: 0; padding: 0; }
   #sel li { padding: 4px 0; border-top: 1px solid var(--line); background: #fff; }
-  #sel li.line { display: grid; grid-template-columns: 5.5em 1fr auto; gap: 6px; align-items: center; touch-action: none; }
+  #sel li.line { display: grid; grid-template-columns: 6.5em 1fr auto; gap: 6px; align-items: center; touch-action: none; }
   #sel li.brk { display: flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 600; font-size: 12px; touch-action: none; }
   #sel li.brk::before, #sel li.brk::after { content: ""; flex: 1; border-top: 2px dashed var(--line); }
   #sel li.brk button, #sel li.line button { padding: 2px 6px; font-size: 12px; }
@@ -89,6 +89,14 @@
 </header>
 
 <main>
+  <section id="selPanel" hidden>
+    <h2>Selected <span id="selCount"></span></h2>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <button id="addBreak">+ tier break</button>
+      <button id="clearSel">clear</button>
+    </div>
+    <ul id="sel"></ul>
+  </section>
   <section id="linesPanel">
     <div class="legend">
       <span><i style="background:var(--front)"></i>front DH</span>
@@ -101,14 +109,6 @@
     </div>
     <div id="empty">Import a bid package (.asc) to begin.</div>
     <div id="lines"></div>
-  </section>
-  <section id="selPanel">
-    <h2>Selected <span id="selCount"></span></h2>
-    <div style="display:flex;gap:6px;margin-bottom:6px">
-      <button id="addBreak">+ tier break</button>
-      <button id="clearSel">clear</button>
-    </div>
-    <ul id="sel"></ul>
   </section>
 </main>
 
@@ -200,6 +200,7 @@ function renderSel() {
     return `<li class="line ${passes(l) ? '' : 'dim'}" data-i="${i}" data-num="${l.num}">${metaHtml(l)}${barHtml(l)}<button data-rm="${i}">✕</button></li>`;
   }).join('');
   const n = state.selected.filter(s => s.t === 'line').length;
+  $('#selPanel').hidden = state.selected.length === 0;
   $('#selCount').textContent = n ? `(${n} line${n === 1 ? '' : 's'}, ${tier} tier${tier === 1 ? '' : 's'})` : '';
 }
 
