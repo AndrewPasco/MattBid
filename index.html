@@ -8,7 +8,7 @@
 <style>
   :root {
     --bg: #f6f7f9; --panel: #fff; --ink: #1b1f24; --muted: #667085; --line: #e3e6ea;
-    --front: #4a90e2; --back: #4caf50; --double: #ff9800; --none: #ffd54f; --rsv: #b0b8c4;
+    --front: #4a90e2; --back: #4caf50; --double: #ff9800; --none: #ffd54f; --rsv: #b0b8c4; --mid: #9b6bd6;
     --off: #fde2e4; --wknd: #f0f2f5; --sel: #e8f0fe; --hdr: 52px;
   }
   * { box-sizing: border-box; }
@@ -56,7 +56,8 @@
   .trip.double { background: var(--double); color: #fff; }
   .trip.none { background: var(--none); }
   .trip.rsv { background: var(--rsv); color: #fff; }
-  .trip.mid::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; border: 2px solid rgba(0,0,0,.45); }
+  .trip .mdh { position: absolute; top: 0; bottom: 0; background: var(--mid); } /* the day of a mid-trip deadhead */
+  .trip .t1, .trip .t2 { position: relative; } /* labels stay on top of .mdh */
 
   /* selected list */
   #sel { list-style: none; margin: 0; padding: 0; }
@@ -115,7 +116,7 @@
       <span><i style="background:var(--double)"></i>double DH</span>
       <span><i style="background:var(--none)"></i>no DH</span>
       <span><i style="background:var(--rsv)"></i>reserve</span>
-      <span>◉ mid-trip DH</span>
+      <span><i style="background:var(--mid)"></i>mid-trip DH day</span>
       <span><i style="background:var(--off)"></i>day off (tap a day in the header)</span>
       <span id="count"></span>
     </div>
@@ -233,9 +234,10 @@ function barHtml(line, header) {
     h += `<div class="${cls}" style="grid-column:${i + 1}" data-i="${i}">${header ? fmtDay(d) : ''}</div>`;
   });
   if (line) line.trips.forEach((t, ti) => {
-    const cls = ['trip', t.reserve ? 'rsv' : t.dhKind, t.midDh && 'mid'].filter(Boolean).join(' ');
+    const cls = ['trip', t.reserve ? 'rsv' : t.dhKind].join(' ');
     const w = t.endIdx - t.startIdx + 1, top = t.reserve ? `Reserve ${t.letter}` : `${t.pairingNum} · ${t.credit}`;
     h += `<div class="${cls}" style="grid-column:${t.startIdx + 1}/${t.endIdx + 2}" data-line="${line.num}" data-trip="${ti}" title="${top}">`;
+    h += (t.midDhDays || []).map(d => `<i class="mdh" style="left:${(d - t.startIdx) * 100 / w}%;width:${100 / w}%"></i>`).join('');
     h += `<div class="t1">${top}</div><div class="t2" style="--w:${w}">` +
       (t.stops || []).map(s => `<span${s.label.includes(' ') ? ' class="route"' : ''} style="grid-column:span ${s.endIdx - s.startIdx + 1}">${s.label}</span>`).join('') + '</div></div>';
   });

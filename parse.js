@@ -162,7 +162,10 @@
     return Array.from(set);
   }
 
-  /** Determine dhKind/midDh/dhCities for a trip, from its resolved pairing or (if none) its grid tokens. */
+  /**
+   * Determine dhKind/midDh/dhCities for a trip, from its resolved pairing or (if none) its grid
+   * tokens. midDays lists the trip days (0 = first day) that have a deadhead inside the trip.
+   */
   function resolveDhKind(pairing, tokens) {
     if (pairing) {
       var legs = pairing.legs;
@@ -170,7 +173,7 @@
       var lead = 0;
       while (lead < n && legs[lead].dh) lead++;
       if (lead === n) {
-        return { dhKind: 'double', midDh: false, dhCities: uniqueDhCities(legs) };
+        return { dhKind: 'double', midDh: false, midDays: [], dhCities: uniqueDhCities(legs) };
       }
       var trail = 0;
       while (trail < n && legs[n - 1 - trail].dh) trail++;
@@ -178,28 +181,30 @@
       var back = trail > 0 && lead === 0;
       var double = lead > 0 && trail > 0;
       var dhKind = front ? 'front' : back ? 'back' : double ? 'double' : 'none';
-      var midDh = false;
+      var midDh = false, midDays = [], legDay = placeLegs(tokens, legs);
       for (var k = lead; k < n - trail; k++) {
-        if (legs[k].dh) { midDh = true; break; }
+        if (!legs[k].dh) continue;
+        midDh = true;
+        if (legDay[k] >= 0 && midDays.indexOf(legDay[k]) === -1) midDays.push(legDay[k]);
       }
-      return { dhKind: dhKind, midDh: midDh, dhCities: uniqueDhCities(legs) };
+      return { dhKind: dhKind, midDh: midDh, midDays: midDays, dhCities: uniqueDhCities(legs) };
     }
 
     var first = tokens[0] || [];
     var last = tokens[tokens.length - 1] || [];
     var hasFirst = first.indexOf('D/H') !== -1;
     var hasLast = last.indexOf('D/H') !== -1;
-    var kind, mid = false;
+    var kind, mid = false, midDays = [];
     if (hasFirst && hasLast) kind = 'double';
     else if (hasFirst) kind = 'front';
     else if (hasLast) kind = 'back';
     else {
       kind = 'none';
       for (var d = 1; d < tokens.length - 1; d++) {
-        if (tokens[d].indexOf('D/H') !== -1) { mid = true; break; }
+        if (tokens[d].indexOf('D/H') !== -1) { mid = true; midDays.push(d); }
       }
     }
-    return { dhKind: kind, midDh: mid, dhCities: [] };
+    return { dhKind: kind, midDh: mid, midDays: midDays, dhCities: [] };
   }
 
   /**
@@ -388,6 +393,7 @@
           pairing: pairing,
           dhKind: dh.dhKind,
           midDh: dh.midDh,
+          midDhDays: dh.midDays.map(function (d) { return ts.day + d; }),
           dhCities: dh.dhCities,
         };
       });
@@ -451,6 +457,7 @@
         pairing: null,
         dhKind: 'none',
         midDh: false,
+        midDhDays: [],
         dhCities: [],
       });
       d++;

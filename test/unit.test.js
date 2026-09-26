@@ -194,3 +194,16 @@ test('trip credits that do not add up to the line credit: parse warns', () => {
   }));
   assert.deepEqual(pkg.warnings, ['LINE 1001: the trip credits do not add up to the line credit']);
 });
+
+test('a deadhead leg between two FedEx legs: the trip marks the day of that leg', () => {
+  const pkg = parseAsc(packageText({
+    pairings: [pairing(33, 'OCT 25 ONLY', [
+      leg('3301', 'MEM', 'EWR'), dutyEnd('EWR'),
+      leg('UA3302', 'EWR', 'ORD'), dutyEnd('ORD'),
+      leg('3303', 'ORD', 'MEM'), dutyEnd(),
+    ])],
+    line: lineBlock(1001, [['3301', 'EWR'], ['D/H', 'ORD'], ['3303']], { 0: [33, '10:00'] }),
+  }));
+  assert.equal(trip(pkg).dhKind, 'none');
+  assert.deepEqual(trip(pkg).midDhDays, [1]);
+});

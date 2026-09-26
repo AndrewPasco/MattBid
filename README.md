@@ -53,7 +53,7 @@ hosted on GitHub Pages: https://andrewpasco.github.io/MattBid/
   once. All data stays in this browser on this device. Other devices and browsers do not
   see it.
 - Colors: blue = front-end deadhead, green = back-end deadhead, orange = both,
-  yellow = no deadhead. A white dot in the middle = a deadhead inside the trip.
+  yellow = no deadhead. A purple day = the day of a deadhead inside the trip.
   Only legs with an airline code (`UA5672`, `DL0084`) count as deadheads.
 - Each trip shows one stop for each duty, from the day that the duty starts: the city where
   the duty lands. If a duty lands in two or more cities, the stop shows the full route, for
