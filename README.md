@@ -57,6 +57,9 @@ does not sync: import the `.asc` file on each device.
    and fill it in on your other devices.
 2. Import the same `.asc` file on each device. Your selections show.
 
+If two devices already have selections for a month before you turn on sync, turn on sync first
+on the device with the selections that you want to keep. The other device then gets them.
+
 A change syncs 2 seconds after you make it, and again each time you open the app. With no
 network, the button shows `Sync ⚠`, and MattBid tries again when the network is back. If two
 devices change the same month, the last change wins. Anyone who knows the password can see and

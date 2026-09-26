@@ -175,7 +175,7 @@ async function store(mode, fn) {
   const db = await idb();
   return new Promise((res, rej) => {
     const tx = db.transaction('packages', mode), req = fn(tx.objectStore('packages'));
-    tx.oncomplete = () => res(req && req.result); tx.onerror = tx.onabort = () => rej(tx.error); // a full disk aborts without an error event
+    tx.oncomplete = () => res(req && req.result); tx.onerror = tx.onabort = () => rej(tx.error || new Error('The storage transaction stopped.')); // a full disk aborts with no error event
   });
 }
 const pkgPut = rec => store('readwrite', s => s.put(rec));
@@ -380,14 +380,17 @@ async function sync() {
   for (let i = 0; i < localStorage.length; i++) {
     const name = localStorage.key(i), title = name.slice('mattbid:'.length);
     if (!name.startsWith('mattbid:') || ['last', 'sync', 'asc'].includes(title)) continue;
-    try { const s = JSON.parse(localStorage.getItem(name)); if (s.updatedAt) months[title] = { updatedAt: s.updatedAt, state: s }; } catch (e) {}
+    // A state from before sync has no updatedAt. Send it as 0: the server keeps it only if it has no copy.
+    try { const s = JSON.parse(localStorage.getItem(name)); months[title] = { updatedAt: s.updatedAt || 0, state: s }; } catch (e) {}
   }
   try {
     const res = await fetch(SYNC_URL + k, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ months }) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     let reload = false;
     for (const [title, m] of Object.entries((await res.json()).months)) {
-      if (months[title] && m.updatedAt <= months[title].updatedAt) continue;
+      const local = months[title];
+      // Keep the local state if it is as new. A local state with no updatedAt gives way to a different server copy.
+      if (local && (local.updatedAt ? m.updatedAt <= local.updatedAt : JSON.stringify(m.state) === JSON.stringify(local.state))) continue;
       localStorage.setItem('mattbid:' + title, JSON.stringify(m.state));
       if (pkg && title === pkg.title) reload = true;
     }
