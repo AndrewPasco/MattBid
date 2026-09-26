@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MattBid</title>
+<link rel="manifest" href="manifest.json">
 <style>
   :root {
     --bg: #f6f7f9; --panel: #fff; --ink: #1b1f24; --muted: #667085; --line: #e3e6ea;
@@ -36,18 +37,19 @@
   .row input[type=checkbox] { width: 18px; height: 18px; margin: 0 6px 0 0; vertical-align: -3px; }
 
   /* calendar bar */
-  .bar { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); height: 42px; position: relative; }
+  .bar { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); min-height: 42px; position: relative; }
   .bar .d { grid-row: 1; border-left: 1px solid var(--line); background: #fff; }
   .bar .d.wknd { background: var(--wknd); }
   .bar .d.off { background: var(--off); }
-  .head .bar { height: 22px; }
+  .head .bar { min-height: 22px; }
   .head .d { font-size: 10px; text-align: center; color: var(--muted); cursor: pointer; user-select: none; line-height: 22px; overflow: hidden; }
   .head .d.off { background: var(--off); color: #b42318; font-weight: 600; }
   .head .d.pend { box-shadow: inset 0 -2px 0 var(--muted); }
   .trip { grid-row: 1; margin: 3px 0; border-radius: 6px; font-size: 10px; line-height: 17px; cursor: pointer; overflow: hidden; position: relative; padding: 1px 0; }
   .trip .t1 { padding: 0 4px; font-weight: 600; white-space: nowrap; overflow: hidden; }
   .trip .t2 { display: grid; grid-template-columns: repeat(var(--w), minmax(0, 1fr)); text-align: center; }
-  .trip .t2 span { overflow: hidden; white-space: nowrap; border-left: 1px solid rgba(255,255,255,.35); }
+  .trip .t2 span { overflow: hidden; white-space: nowrap; border-left: 1px solid rgba(255,255,255,.35); line-height: 12px; padding: 2px 0 3px; }
+  .trip .t2 span.route { white-space: normal; } /* 'EWR IND EWR' wraps in a narrow stop, and the row grows */
   .trip .t2 span:first-child { border-left: 0; }
   .trip.front { background: var(--front); color: #fff; }
   .trip.back { background: var(--back); color: #fff; }
@@ -85,7 +87,8 @@
   <h1>MattBid</h1>
   <select id="month" title="Stored months"></select>
   <button id="delMonth" title="Forget this month" hidden>✕</button>
-  <input type="file" id="file" title="Import a bid package (.asc)">
+  <input type="file" id="file" title="Import a bid package (.asc) or a MattBid backup (.json)">
+  <button id="backup" title="Save the package and your selections to a file">Save backup</button>
   <label>DH city <input id="dhCity" maxlength="4" placeholder="ORD">
     <select id="dhMode"><option value="exclude">exclude</option><option value="only">only</option></select></label>
   <label>Days off <select id="daysOffMode"><option value="highlight">highlight</option><option value="hide">hide lines</option></select>
@@ -126,12 +129,12 @@
 <dialog id="exportDlg"><div class="body"><h3>Bid</h3><textarea id="exportText" readonly></textarea></div>
   <div class="actions"><button id="copyBtn">Copy</button><button id="dlBtn">Download</button><button onclick="exportDlg.close()">Close</button></div></dialog>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js"></script>
+<script src="vendor/Sortable.min.js"></script>
 <script src="parse.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 let pkg = null;
-const freshState = () => ({ selected: [], filters: { dhCity: '', dhMode: 'exclude', daysOff: [], daysOffMode: 'highlight' }, sort: 'line', showReserve: true });
+const freshState = () => ({ selected: [], filters: { dhCity: '', dhMode: 'exclude', daysOff: [], daysOffMode: 'highlight' }, sort: 'line', showReserve: true, vto: false });
 let state = freshState();
 
 // ---------- per-month state (localStorage, small) ----------
@@ -142,7 +145,7 @@ function load() {
   try { const s = localStorage.getItem(key()); if (s) Object.assign(state, JSON.parse(s)); } catch (e) {}
   $('#dhCity').value = state.filters.dhCity; $('#dhMode').value = state.filters.dhMode;
   $('#daysOffMode').value = state.filters.daysOffMode; $('#sort').value = state.sort;
-  $('#showReserve').checked = state.showReserve;
+  $('#showReserve').checked = state.showReserve; $('#vto').checked = state.vto;
 }
 
 // ---------- package store (IndexedDB, one record per month) ----------
@@ -157,7 +160,7 @@ async function store(mode, fn) {
   const db = await idb();
   return new Promise((res, rej) => {
     const tx = db.transaction('packages', mode), req = fn(tx.objectStore('packages'));
-    tx.oncomplete = () => res(req && req.result); tx.onerror = () => rej(tx.error);
+    tx.oncomplete = () => res(req && req.result); tx.onerror = tx.onabort = () => rej(tx.error); // a full disk aborts without an error event
   });
 }
 const pkgPut = rec => store('readwrite', s => s.put(rec));
@@ -177,6 +180,7 @@ function show(text) {
   pkg = parseAsc(text);
   $('#empty').hidden = true;
   load(); render();
+  navigator.storage?.persist?.(); // ask the browser to keep the stored months (a Home Screen app gets it)
 }
 async function importText(text) {
   show(text);
@@ -191,8 +195,23 @@ async function openMonth(title) {
   localStorage.setItem('mattbid:last', title);
   refreshMonths();
 }
-$('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(importText); e.target.value = ''; });
-$('#month').onchange = e => openMonth(e.target.value);
+// A backup is JSON with the package text and the selections. Any other file is a package.
+async function openFile(text) {
+  if (!text.trimStart().startsWith('{')) return importText(text);
+  const b = JSON.parse(text);
+  if (b.app !== 'mattbid') throw new Error('This JSON file is not a MattBid backup.');
+  if (!confirm(`Restore ${b.title} and its selections from this backup?`)) return;
+  localStorage.setItem('mattbid:' + b.title, JSON.stringify(b.state));
+  await importText(b.text);
+}
+const fail = err => alert(`MattBid could not open the package: ${err.message}`);
+$('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(openFile).catch(fail); e.target.value = ''; });
+$('#backup').onclick = async () => {
+  if (!pkg) return alert('Import a bid package first.');
+  const b = { app: 'mattbid', title: pkg.title, savedAt: new Date().toISOString(), text: (await pkgGet(pkg.title)).text, state };
+  download(new Blob([JSON.stringify(b)], { type: 'application/json' }), `mattbid-${pkg.title.replace(/\W+/g, '-')}.json`);
+};
+$('#month').onchange = e => openMonth(e.target.value).catch(fail);
 $('#delMonth').onclick = async () => {
   if (!pkg || !confirm(`Forget ${pkg.title} and its selections?`)) return;
   await pkgDelete(pkg.title); localStorage.removeItem(key()); localStorage.removeItem('mattbid:last');
@@ -233,7 +252,7 @@ function barHtml(line, header) {
     const w = t.endIdx - t.startIdx + 1, top = t.reserve ? `Reserve ${t.letter}` : `${t.pairingNum} · ${t.credit}`;
     h += `<div class="${cls}" style="grid-column:${t.startIdx + 1}/${t.endIdx + 2}" data-line="${line.num}" data-trip="${ti}" title="${top}">`;
     h += `<div class="t1">${top}</div><div class="t2" style="--w:${w}">` +
-      (t.stops || []).map(s => `<span style="grid-column:span ${s.endIdx - s.startIdx + 1}">${s.label}</span>`).join('') + '</div></div>';
+      (t.stops || []).map(s => `<span${s.label.includes(' ') ? ' class="route"' : ''} style="grid-column:span ${s.endIdx - s.startIdx + 1}">${s.label}</span>`).join('') + '</div></div>';
   });
   return h + '</div>';
 }
@@ -246,8 +265,8 @@ function metaHtml(line, checkbox) {
 const headRow = () => `<div class="row head"><div class="meta">line</div>${barHtml(null, true)}</div>`;
 function render() {
   if (!pkg) return;
-  const visible = sorted(pkg.lines.filter(passes));
-  $('#count').textContent = `${visible.length} / ${pkg.lines.length} shown`;
+  const visible = sorted(pkg.lines.filter(passes)), w = pkg.warnings.length;
+  $('#count').textContent = `${visible.length} / ${pkg.lines.length} shown` + (w ? ` · ⚠ ${w} parse warning${w === 1 ? '' : 's'} (tap)` : '');
   $('#lines').innerHTML = headRow() + visible.map(l => `<div class="row">${metaHtml(l, true)}${barHtml(l)}</div>`).join('');
   renderSel();
   save();
@@ -256,7 +275,9 @@ function renderSel() {
   let tier = 1;
   $('#sel').innerHTML = state.selected.map((s, i) => {
     if (s.t === 'break') return `<li class="brk" data-i="${i}"><span class="name" data-name="${i}">${s.name || 'Tier ' + (++tier)}</span> <button data-rm="${i}">✕</button></li>`;
-    const l = lineByNum(s.num); if (!l) return '';
+    const l = lineByNum(s.num);
+    // A new import of the month can remove a selected line. Show it, because the export still has it.
+    if (!l) return `<li class="line dim" data-i="${i}"><div class="meta"><b>${s.num}</b><small>not in this package</small></div><div></div><button data-rm="${i}">✕</button></li>`;
     return `<li class="line ${passes(l) ? '' : 'dim'}" data-i="${i}" data-num="${l.num}">${metaHtml(l)}${barHtml(l)}<button data-rm="${i}">✕</button></li>`;
   }).join('');
   const n = state.selected.filter(s => s.t === 'line').length, tiers = state.selected.filter(s => s.t === 'break').length + 1;
@@ -272,6 +293,7 @@ function onDayOrTrip(e) {
   const day = e.target.closest('.head .d'); if (day) return toggleDay(+day.dataset.i);
 }
 $('#lines').addEventListener('click', onDayOrTrip);
+$('#count').onclick = () => { if (pkg && pkg.warnings.length) alert(pkg.warnings.join('\n')); };
 $('#selHead').addEventListener('click', onDayOrTrip);
 $('#lines').addEventListener('change', e => {
   const cb = e.target.closest('input[type=checkbox]'); if (!cb) return;
@@ -285,7 +307,8 @@ $('#sel').addEventListener('click', e => {
   const rm = e.target.closest('[data-rm]'); if (rm) { state.selected.splice(+rm.dataset.rm, 1); render(); return; }
   onDayOrTrip(e);
 });
-Sortable.create($('#sel'), { animation: 120, delay: 120, delayOnTouchOnly: true, onEnd() {
+// If vendor/Sortable.min.js does not load, drag is off and the rest of the app works.
+if (window.Sortable) Sortable.create($('#sel'), { animation: 120, delay: 120, delayOnTouchOnly: true, onEnd() {
   const order = [...$('#sel').children].map(li => state.selected[+li.dataset.i]);
   state.selected = order; renderSel(); save();
 } });
@@ -302,6 +325,7 @@ $('#dhMode').onchange = e => { state.filters.dhMode = e.target.value; render(); 
 $('#daysOffMode').onchange = e => { state.filters.daysOffMode = e.target.value; render(); };
 $('#sort').onchange = e => { state.sort = e.target.value; render(); };
 $('#showReserve').onchange = e => { state.showReserve = e.target.checked; render(); };
+$('#vto').onchange = e => { state.vto = e.target.checked; render(); };
 
 function showTrip(lineNum, ti) {
   const t = lineByNum(lineNum).trips[ti], p = t.pairing;
@@ -327,21 +351,22 @@ function bidText() {
   if ($('#vto').checked) nums.push(9952);
   return nums.join('\n');
 }
-$('#export').onclick = () => { $('#exportText').value = bidText(); exportDlg.showModal(); };
+$('#export').onclick = () => { $('#exportText').value = bidText(); $('#copyBtn').textContent = 'Copy'; exportDlg.showModal(); };
 $('#copyBtn').onclick = () => navigator.clipboard.writeText(bidText()).then(() => $('#copyBtn').textContent = 'Copied', () => alert('Copy failed; select the text and copy manually.'));
-$('#dlBtn').onclick = () => {
+function download(blob, name) {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([bidText()], { type: 'text/plain' }));
-  a.download = `bid-${(pkg && pkg.title || 'mattbid').replace(/\W+/g, '-')}.txt`; a.click();
-};
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+}
+$('#dlBtn').onclick = () => download(new Blob([bidText()], { type: 'text/plain' }), `bid-${(pkg && pkg.title || 'mattbid').replace(/\W+/g, '-')}.txt`);
 
 // ---------- startup: migrate the v0 single-package key, then open the last month ----------
 (async () => {
   let old = null; try { old = localStorage.getItem('mattbid:asc'); } catch (e) {}
   if (old) { await importText(old); localStorage.removeItem('mattbid:asc'); return; }
   const last = localStorage.getItem('mattbid:last');
-  if (last) await openMonth(last); else refreshMonths();
-})();
+  if (last) await openMonth(last);
+})().catch(fail).finally(refreshMonths); // also fills the month list when the last month is gone
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js'); // offline launch
 </script>
 </body>
 </html>

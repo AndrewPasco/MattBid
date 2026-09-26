@@ -40,6 +40,8 @@
       m1 = m[1]; d1 = Number(m[2]); m2 = m[3]; d2 = Number(m[4]);
     } else {
       m = text.match(/^([A-Z]{3}) (\d{2}) ONLY$/);
+      // An unknown clause gets an empty range. No trip date matches it, so the trip gets a warning.
+      if (!m) return { start: '', end: '', text: text };
       m1 = m[1]; d1 = Number(m[2]); m2 = m1; d2 = d1;
     }
     return {
@@ -53,6 +55,7 @@
     var monthIdx = MONTHS.indexOf(monAbbr);
     var year = titleYear;
     if (titleMonthIdx - monthIdx > 6) year += 1;
+    else if (monthIdx - titleMonthIdx > 6) year -= 1; // a DEC date in a JAN package
     return year + '-' + pad2(monthIdx + 1) + '-' + pad2(day);
   }
 
@@ -91,6 +94,7 @@
       var legs = [];
       var hotels = [];
       var footer = null;
+      var duty = 0;
 
       for (var j = 3; j < block.length; j++) {
         var line = block[j];
@@ -111,6 +115,7 @@
             arr: lm[7], arrZ: lm[8], arrL: lm[9],
             blk: lm[10],
             flags: lm[11].trim(),
+            duty: duty,
           });
           continue;
         }
@@ -118,11 +123,13 @@
         if (/^ {14}/.test(line)) {
           var hmM = line.match(HOTEL_RE);
           if (hmM) {
+            duty++; // the line with the duty times ends a duty period
             var name = hmM[1].trim();
             if (name) hotels.push({ name: name, layover: hmM[2] ? hmM[2] + ' ' + hmM[3] : '' });
           }
         }
       }
+      if (!legs.length) return; // unreadable legs: trips that use this number get a warning
 
       var pairing = {
         num: num,
@@ -224,7 +231,51 @@
       if (last && last.label === label && !newArrival) last.endIdx = startIdx + j;
       else stops.push({ label: label, startIdx: startIdx + j, endIdx: startIdx + j });
     });
+    if (pairing) addLoopRoutes(stops, pairing, tokens, startIdx);
     return stops;
+  }
+
+  /**
+   * Show the full route of a duty period that flies out and back to one city ('EWR IND EWR').
+   * The grid shows only layover cities, so the route comes from the legs. The route goes on
+   * the stop that holds the grid day of the last FedEx leg of the duty period.
+   */
+  function addLoopRoutes(stops, pairing, tokens, startIdx) {
+    // Find the grid day of each FedEx leg. Search forward, because a trip can fly a number twice.
+    var legDay = new Map();
+    var d = 0, from = 0;
+    pairing.legs.forEach(function (leg) {
+      if (!/^\d+$/.test(leg.flt)) return;
+      for (var j = d; j < tokens.length; j++) {
+        var k = tokens[j].indexOf(leg.flt, j === d ? from : 0);
+        if (k !== -1) { legDay.set(leg, j); d = j; from = k + 1; return; }
+      }
+    });
+
+    var duties = [];
+    pairing.legs.forEach(function (leg) { (duties[leg.duty] = duties[leg.duty] || []).push(leg); });
+    duties.forEach(function (legs) {
+      var home = legs[0].dep;
+      if (legs.length < 2 || legs[legs.length - 1].arr !== home) return;
+      var placed = legs.filter(function (leg) { return legDay.has(leg); });
+      if (!placed.length) return;
+      var day = startIdx + legDay.get(placed[placed.length - 1]);
+      var stop = stops.find(function (s) { return s.startIdx <= day && day <= s.endIdx; });
+      var route = stop.route || (stop.route = []);
+      if (route[route.length - 1] !== home) route.push(home);
+      legs.forEach(function (leg) { route.push(leg.arr); });
+    });
+
+    stops.forEach(function (s) {
+      if (!s.route) return;
+      // The stop can end in a new city after the loop ('CDG LGG CDG FRA').
+      if (s.route[s.route.length - 1] !== s.label) s.route.push(s.label);
+      s.label = s.route.join(' ');
+    });
+  }
+
+  function effectiveOn(date) {
+    return function (p) { return p.effective.start <= date && date <= p.effective.end; };
   }
 
   function parseCaptainSection(sectionLines, pairings) {
@@ -232,6 +283,8 @@
     for (var i = 0; i < sectionLines.length; i++) {
       if (/Captain ONLY\s*$/.test(sectionLines[i])) { titleIdx = i; break; }
     }
+    if (titleIdx === -1) throw new Error('The package has no "Captain ONLY" line grid.');
+    var warnings = [];
     var tm = sectionLines[titleIdx].match(/\((\d{4}-\d\d-\d\d) - (\d{4}-\d\d-\d\d)\)/);
     var period = { start: tm[1], end: tm[2] };
 
@@ -296,9 +349,16 @@
 
         var candidates = pairings.get(ts.pairingNum) || [];
         var startDate = days[ts.day];
-        var pairing = candidates.find(function (p) {
-          return p.effective.start <= startDate && startDate <= p.effective.end;
-        }) || candidates[0] || null;
+        // Grid days are local dates. EFFECTIVE dates are Zulu dates of the first departure, so
+        // an evening departure is effective on the next day.
+        var pairing = candidates.find(effectiveOn(startDate)) ||
+          candidates.find(effectiveOn(addDaysISO(startDate, 1)));
+        if (!pairing) {
+          warnings.push('LINE ' + lm[1] + ': ' + (candidates.length
+            ? 'no pairing ' + ts.pairingNum + ' is effective on ' + startDate
+            : 'pairing ' + ts.pairingNum + ' is not in the package'));
+          pairing = candidates[0] || null;
+        }
 
         var dh = resolveDhKind(pairing, tokens);
 
@@ -316,6 +376,13 @@
         };
       });
 
+      // The trip credits must add up to the line credit plus the carry-out (C/O) credit.
+      var co = rows[3].match(/C\/O\.\s+(\d+:\d\d)/);
+      var tripMinutes = trips.reduce(function (sum, t) { return sum + (t.credit ? toMinutes(t.credit) : 0); }, 0);
+      if (tripMinutes !== toMinutes(crTaf[1]) + (co ? toMinutes(co[1]) : 0)) {
+        warnings.push('LINE ' + lm[1] + ': the trip credits do not add up to the line credit');
+      }
+
       return {
         num: Number(lm[1]),
         flag: lm[2] ? '*' : '',
@@ -330,7 +397,7 @@
       };
     });
 
-    return { period: period, days: days, lines: lines };
+    return { period: period, days: days, lines: lines, warnings: warnings };
   }
 
   var RESERVE_ROW_RE = /^ *(\d{4})(?:-(\d{4}))? *\|(.*)$/;
@@ -413,6 +480,7 @@
   function parseAsc(text) {
     var lines = text.split(/\r?\n/);
     var tm = lines[0].match(/Report for (\S+) schedule (\S+) (\d{4})\s+([A-Z]+) BASE/);
+    if (!tm) throw new Error('The file is not a bid package (.asc): the first line has no "Report for ... BASE" title.');
     var fleet = tm[1], monthName = tm[2], year = Number(tm[3]), base = tm[4];
     var titleMonthIdx = MONTHS.indexOf(monthName.slice(0, 3));
     var title = fleet + ' ' + monthName + ' ' + year + ' ' + base;
@@ -439,6 +507,7 @@
       lines: cal.lines.concat(reserveLines),
       rlg: rlg,
       seat: 'CAP',
+      warnings: cal.warnings,
     };
   }
 

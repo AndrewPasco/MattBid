@@ -3,6 +3,7 @@
  * the parser against the full real .asc export.
  */
 var fs = require('fs');
+var os = require('os');
 var path = require('path');
 
 global.window = global;
@@ -10,7 +11,12 @@ require('../parse.js');
 require('./assertions.js');
 
 function main() {
-  var fixtureText = fs.readFileSync(path.join(__dirname, 'fixture.asc'), 'utf8');
+  var fixturePath = path.join(__dirname, 'fixture.asc');
+  if (!fs.existsSync(fixturePath)) {
+    console.log('test/fixture.asc is missing. Create it: sh test/make-fixture.sh <package.asc>');
+    process.exit(1);
+  }
+  var fixtureText = fs.readFileSync(fixturePath, 'utf8');
   var fixtureParsed = global.parseAsc(fixtureText);
   var results = global.runAssertions(fixtureParsed);
 
@@ -21,56 +27,34 @@ function main() {
   });
   console.log(passed + ' passed, ' + failed + ' failed');
 
-  var realPath = '/Users/apasco/Downloads/2026_Oct_B777_MEM_LINES.asc';
+  var realPath = process.env.MATTBID_ASC || path.join(os.homedir(), 'Downloads/2026_Oct_B777_MEM_LINES.asc');
   if (!fs.existsSync(realPath)) {
-    console.log('\nReal file not found at ' + realPath + ', skipping full-file checks.');
+    console.log('\nReal file not found at ' + realPath + ', skipping full-file checks. Set MATTBID_ASC to its path.');
     process.exit(failed === 0 ? 0 : 1);
   }
 
-  var realText = fs.readFileSync(realPath, 'utf8');
-  var real = global.parseAsc(realText);
-
+  var real = global.parseAsc(fs.readFileSync(realPath, 'utf8'));
   var calLines = real.lines.filter(function (l) { return !l.reserve; });
   var reserveLines = real.lines.filter(function (l) { return l.reserve; });
 
-  console.log('\n--- full file checks ---');
-  console.log('lines count: ' + calLines.length + ' (expect 283)');
-  console.log('pairings count: ' + real.pairings.size + ' (expect 874)');
-  console.log('reserve lines count: ' + reserveLines.length + ' (expect 52)');
-  var blankLetterLines = reserveLines.filter(function (l) { return !l.letter; });
-  console.log('reserve lines with blank letter: ' + blankLetterLines.length + ' (expect 0)');
-  console.log('stops hiding an out-and-back arrival day: ' + global.hiddenArrivalDays(real.lines) + ' (expect 0)');
-
-  var trips = [];
-  calLines.forEach(function (line) {
-    line.trips.forEach(function (trip) { trips.push({ line: line, trip: trip }); });
-  });
-  console.log('trips: ' + trips.length);
-
-  var nullPairingTrips = trips.filter(function (t) { return t.trip.pairing === null; });
-  console.log('trips with pairing null: ' + nullPairingTrips.length + ' (expect 0)');
-  if (nullPairingTrips.length) {
-    nullPairingTrips.slice(0, 5).forEach(function (t) {
-      console.log('  LINE ' + t.line.num + ' pairingNum ' + t.trip.pairingNum + ' startIdx ' + t.trip.startIdx);
-    });
+  function expect(name, actual, expected) {
+    var ok = actual === expected;
+    if (!ok) failed++;
+    console.log((ok ? 'PASS' : 'FAIL') + ' - ' + name + ': ' + actual + (ok ? '' : ' (expected ' + expected + ')'));
   }
 
-  var mismatches = [];
-  calLines.forEach(function (line) {
-    var sumMinutes = line.trips.reduce(function (acc, t) {
-      return acc + (t.credit ? global.toMinutes(t.credit) : 0);
-    }, 0);
-    // Line credit excludes the carry-out portion of a trip that ends after the bid period (row 3 'C/O.').
-    var co = line.rows[3].match(/C\/O\.\s+(\d+:\d\d)/);
-    var lineMinutes = global.toMinutes(line.credit) + (co ? global.toMinutes(co[1]) : 0);
-    if (sumMinutes !== lineMinutes) {
-      mismatches.push({ num: line.num, sum: sumMinutes, lineCredit: lineMinutes });
-    }
-  });
-  console.log('line credit mismatches: ' + mismatches.length);
-  mismatches.slice(0, 5).forEach(function (m) {
-    console.log('  LINE ' + m.num + ' sum=' + m.sum + 'min line=' + m.lineCredit + 'min');
-  });
+  console.log('\n--- full file checks: ' + realPath + ' ---');
+  // The counts are for the default October 2026 package. Other packages get only the invariants.
+  if (!process.env.MATTBID_ASC) {
+    expect('lines', calLines.length, 283);
+    expect('pairing numbers', real.pairings.size, 874);
+    expect('reserve lines', reserveLines.length, 52);
+  }
+  expect('reserve lines with a blank letter', reserveLines.filter(function (l) { return !l.letter; }).length, 0);
+  expect('stops that hide an out-and-back arrival day', global.hiddenArrivalDays(real.lines), 0);
+  // Warnings cover missing pairings, pairings with no effective date, and credit sums.
+  expect('parse warnings', real.warnings.length, 0);
+  real.warnings.slice(0, 5).forEach(function (w) { console.log('  ' + w); });
 
   process.exit(failed === 0 ? 0 : 1);
 }

@@ -7,7 +7,9 @@ export, shows each line as a calendar bar, and exports an ordered bid.
 
 - `index.html`: the app (markup, styles, and logic).
 - `parse.js`: the `.asc` parser. `parseAsc(text)` returns the package object.
+- `sw.js` and `manifest.json`: offline launch and the Home Screen app. `vendor/`: SortableJS.
 - `test/parse.test.html`: browser test page. `test/run.js`: the same checks under Node.
+- `test/unit.test.js`: contract tests on synthetic packages. `AGENTS.md` gives the test rules.
 - `test/fixture.asc`: a small cut of a real package. It is not in git. Create it with
   `sh test/make-fixture.sh ~/Downloads/2026_Oct_B777_MEM_LINES.asc`.
 
@@ -22,7 +24,8 @@ export, shows each line as a calendar bar, and exports an ordered bid.
 2. Open `http://localhost:8765/` and import the `.asc` file.
 3. Open `http://localhost:8765/test/parse.test.html` to run the parser tests.
 
-The app needs a web server because it loads `parse.js` and SortableJS (from cdnjs).
+The app needs a web server because it loads `parse.js`, `vendor/Sortable.min.js`, and the
+service worker (`sw.js`).
 Safari on iPad does not run scripts in HTML files opened from the Files app, so the app is
 hosted on GitHub Pages: https://andrewpasco.github.io/MattBid/
 
@@ -30,10 +33,16 @@ hosted on GitHub Pages: https://andrewpasco.github.io/MattBid/
 
 1. Open https://andrewpasco.github.io/MattBid/ in Safari.
 2. Tap the share button, then `Add to Home Screen`, so it opens like an app.
-3. Save the `.asc` file to the Files app (iCloud Drive or On My iPad).
-4. In MattBid, tap `Choose File` and pick the `.asc` file. The package stays in the browser
-   storage until you import another one.
-5. Export: `Copy` puts the line numbers on the clipboard; `Download` saves a `.txt` file to
+3. Always open MattBid from the Home Screen icon. The Home Screen app has its own storage, so
+   a package that you import in a browser tab does not show in it.
+4. Save the `.asc` file to the Files app (iCloud Drive or On My iPad).
+5. In MattBid, tap `Choose File` and pick the `.asc` file. MattBid keeps each month that you
+   import. Use the list at the top to change the month.
+6. After one launch with a network, MattBid also opens with no network (for example, in
+   airplane mode). When the network is back, the next launch gets the newest version.
+7. `Save backup` saves the package and your selections to a `.json` file in Files. To restore
+   them (for example, on a new iPad), tap `Choose File` and pick that file.
+8. Export: `Copy` puts the line numbers on the clipboard; `Download` saves a `.txt` file to
    Files.
 
 ## Use
@@ -43,20 +52,28 @@ hosted on GitHub Pages: https://andrewpasco.github.io/MattBid/
 - Colors: blue = front-end deadhead, green = back-end deadhead, orange = both,
   yellow = no deadhead. A white dot in the middle = a deadhead inside the trip.
   Only legs with an airline code (`UA5672`, `DL0084`) count as deadheads.
+- Each trip shows the city of each stop. If a duty flies out and back to the same city, the
+  stop shows the full route, for example `EWR IND EWR`.
 - Tap a trip to open the pairing details and the raw pairing text.
+- If the parser finds a problem in the package (for example, trip credits that do not add up
+  to the line credit), the count shows `⚠ N parse warnings`. Tap it to see the list.
 - Tap a day in the calendar header to mark it as a day off. The `Days off` mode either
   highlights those days or hides lines that work on them.
 - `DH city`: type an airport code. `exclude` hides lines with a deadhead through that city,
   `only` shows only those lines.
 - Select lines with the checkbox. Drag lines and tier breaks in the `Selected` panel.
+  A selected line that a new import of the month removed shows `not in this package`. The
+  export still includes it, so remove it with `✕`.
 - `Export bid` gives one line number per row, tiers flattened top to bottom. Check
   `add 9952 (VTO)` to append 9952 as the last choice.
 
 ## Test
 
 ```bash
+node --test test/unit.test.js
 node test/run.js
 ```
 
-The Node run checks the fixture and, when `~/Downloads/2026_Oct_B777_MEM_LINES.asc`
-exists, the full package (line count, unresolved pairings, and credit sums).
+The first command runs on every machine. The second command checks the fixture and, when
+`~/Downloads/2026_Oct_B777_MEM_LINES.asc` exists (or `MATTBID_ASC` gives a package path), the
+full package: counts, stop labels, and parse warnings.
