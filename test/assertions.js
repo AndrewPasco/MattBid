@@ -3,19 +3,20 @@
  * Exposes runAssertions(parsed) -> [{name, pass, detail}].
  */
 (function (global) {
-  global.hiddenArrivalDays = function (lines) {
+  /**
+   * Count the trips whose stop labels do not list every city where a leg lands, in order.
+   * A label can also start with the city of the first departure ('MEM ORD ANC').
+   */
+  global.missedLandings = function (lines) {
+    var dedupe = function (a) { return a.filter(function (x, i) { return x !== a[i - 1]; }); };
     var n = 0;
     lines.forEach(function (line) {
-      if (line.reserve) return;
       line.trips.forEach(function (t) {
-        var apt = function (tk) { return tk.some(function (x) { return /^[A-Z]{3}$/.test(x); }); };
-        var mv = function (tk) { return tk.some(function (x) { return /^\d{3,4}$/.test(x) || x === 'D/H'; }); };
-        t.stops.forEach(function (s) {
-          for (var d = s.startIdx + 1; d <= s.endIdx; d++) {
-            var tk = t.tokens[d - t.startIdx], prev = t.tokens[d - 1 - t.startIdx];
-            if (apt(tk) && mv(tk) && apt(prev)) n++;
-          }
-        });
+        if (!t.pairing) return;
+        var landed = dedupe(t.pairing.legs.map(function (l) { return l.arr; }));
+        var shown = dedupe(t.stops.flatMap(function (s) { return s.label.split(' '); }));
+        if (shown[0] === t.pairing.legs[0].dep && shown[0] !== landed[0]) shown.shift();
+        if (shown.join(' ') !== landed.join(' ')) n++;
       });
     });
     return n;
@@ -85,7 +86,7 @@
       eq('LINE 1001: trip dhKind', t.dhKind, 'front');
       eq('LINE 1001: trip midDh', t.midDh, false);
       eq('LINE 1001: stops labels', t.stops.map(function (s) { return s.label; }).join(','),
-        'ANC,CAN,DEL,CAN,DEL,CDG,MEM');
+        'MEM ORD ANC,CAN,DEL,CAN,DEL,CDG,MEM');
       ['MEM', 'ORD', 'ANC'].forEach(function (city) {
         check('LINE 1001: dhCities contains ' + city, t.dhCities.indexOf(city) !== -1, t.dhCities.join(','));
       });
@@ -121,7 +122,7 @@
       // pairing 105 legs: 5313 (not dh), UA1959 (dh), UA2789 (dh) -> trailing run of 2 dh legs -> 'back'
       eq('LINE 1150: trips[1].dhKind (from pairing 105 legs)', t1.dhKind, 'back');
       eq('LINE 1150: trips[0].endIdx', t0.endIdx, 13);
-      eq('LINE 1150: trips[0] first stop label', t0.stops[0].label, 'CDG');
+      eq('LINE 1150: trips[0] first stop label', t0.stops[0].label, 'MEM ATL CDG');
     }
 
     var reserveNums = [7001, 7002, 7003, 7004, 7008, 7009];
@@ -160,7 +161,7 @@
       });
     });
     check('no stop label is D/H, =>, or numeric', noBadStopLabels);
-    eq('no stop hides an out-and-back arrival day', global.hiddenArrivalDays(r.lines), 0);
+    eq('every trip lists every landing city in its stops', global.missedLandings(r.lines), 0);
 
     r.lines.forEach(function (line) {
       line.trips.forEach(function (trip) {

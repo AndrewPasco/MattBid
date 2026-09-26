@@ -51,7 +51,7 @@ function main() {
     expect('reserve lines', reserveLines.length, 52);
   }
   expect('reserve lines with a blank letter', reserveLines.filter(function (l) { return !l.letter; }).length, 0);
-  expect('stops that hide an out-and-back arrival day', global.hiddenArrivalDays(real.lines), 0);
+  expect('trips whose stops miss a landing city', global.missedLandings(real.lines), 0);
   // Warnings cover missing pairings, pairings with no effective date, and credit sums.
   expect('parse warnings', real.warnings.length, 0);
   real.warnings.slice(0, 5).forEach(function (w) { console.log('  ' + w); });

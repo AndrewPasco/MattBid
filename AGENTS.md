@@ -57,5 +57,13 @@ install. Read `README.md` first for the user workflow.
 - The row with the three duty times (and the hotel, if there is one) ends a duty period.
 - The grid shows flight numbers and layover cities only. The legs of the pairing give the full
   route.
+- The grid shows each leg as one token, in leg order: the FedEx flight number, `D/H` (an
+  airline deadhead or ground transport), or `HSBY` (a hotel standby, leg `STHOTL`). The parser
+  uses this order to put each leg on its day. Each duty period starts a stop on that day.
+- The grid can mark the day of the last leg of a trip as a day off (`---`) when the leg departs
+  after midnight. That day is still part of the trip.
+- A trip in the next columns can show the last leg of the trip before it.
+- The stop labels of a trip must list every city where a leg lands, in order
+  (`missedLandings` in `test/assertions.js`).
 - The trip credits (the last row of a `LINE` block) add up to the line credit (`CR.`) plus the
   `C/O.` credit on the fourth row.

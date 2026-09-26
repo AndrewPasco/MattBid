@@ -202,13 +202,66 @@
     return { dhKind: kind, midDh: mid, dhCities: [] };
   }
 
-  /** Per-day stop label from a trip's grid tokens, merged into {label, startIdx, endIdx} runs. */
   /**
-   * Collapse a trip's days into stops. A stop is an arrival day (plus the transit days of the
-   * leg that lands there) followed by layover days with no flying. A day that flies and lands
-   * in the same city again (an out-and-back) starts a new stop, so it never merges away.
+   * Collapse a trip's days into stops. Each duty period starts a stop on the grid day of its
+   * first leg, and the stop lasts until the next duty starts. The label is the arrival city, or
+   * the full route when the duty lands in two or more cities ('KIX PEK ICN', 'EWR IND EWR').
    */
   function computeStops(tokens, pairing, startIdx) {
+    var legDay = pairing ? placeLegs(tokens, pairing.legs) : [];
+    if (!legDay.some(function (d) { return d >= 0; })) return stopsFromGrid(tokens, pairing, startIdx);
+
+    var duties = [];
+    pairing.legs.forEach(function (leg, i) { (duties[leg.duty] = duties[leg.duty] || []).push(i); });
+    var stops = [];
+    duties.forEach(function (idx) {
+      var route = shownRoute(idx.map(function (i) { return pairing.legs[i]; }));
+      var day = idx.map(function (i) { return legDay[i]; }).filter(function (d) { return d >= 0; })[0];
+      var last = stops[stops.length - 1];
+      // A duty that the grid does not show, or that starts on the day of the duty before, joins that stop.
+      if (last && (day === undefined || day <= last.day)) {
+        last.route = last.route.concat(route[0] === last.route[last.route.length - 1] ? route.slice(1) : route);
+        return;
+      }
+      stops.push({ day: last ? day : 0, route: route });
+    });
+    return stops.map(function (s, k) {
+      var next = stops[k + 1];
+      return { label: s.route.join(' '), startIdx: startIdx + s.day, endIdx: startIdx + (next ? next.day - 1 : tokens.length - 1) };
+    });
+  }
+
+  /**
+   * Find the grid day of each leg, or -1 if the grid does not show the leg. The grid shows each
+   * leg as one token, in leg order: the FedEx flight number, 'HSBY' (hotel standby), or 'D/H'.
+   * Search forward from the last match, because a trip can fly a number twice.
+   */
+  function placeLegs(tokens, legs) {
+    var d = 0, from = 0;
+    return legs.map(function (leg) {
+      var want = /^\d+$/.test(leg.flt) ? leg.flt : leg.flt === 'STHOTL' ? 'HSBY' : 'D/H';
+      for (var j = d; j < tokens.length; j++) {
+        var k = tokens[j].indexOf(want, j === d ? from : 0);
+        if (k !== -1) { d = j; from = k + 1; return j; }
+      }
+      return -1;
+    });
+  }
+
+  /** The cities of a duty. A duty with one hop shows only the city where it lands. */
+  function shownRoute(legs) {
+    var route = [legs[0].dep];
+    legs.forEach(function (leg) { if (leg.arr !== route[route.length - 1]) route.push(leg.arr); });
+    return route.length > 2 ? route : route.slice(-1);
+  }
+
+  /**
+   * Collapse a trip's days into stops from the grid cities only (a trip that the pairing does
+   * not explain). A stop is an arrival day (plus the transit days of the leg that lands there)
+   * followed by layover days with no flying. A day that flies and lands in the same city again
+   * (an out-and-back) starts a new stop, so it never merges away.
+   */
+  function stopsFromGrid(tokens, pairing, startIdx) {
     var arrival = tokens.map(function (dayTokens) {
       var label = '';
       dayTokens.forEach(function (tok) { if (/^[A-Z]{3}$/.test(tok)) label = tok; });
@@ -231,47 +284,7 @@
       if (last && last.label === label && !newArrival) last.endIdx = startIdx + j;
       else stops.push({ label: label, startIdx: startIdx + j, endIdx: startIdx + j });
     });
-    if (pairing) addLoopRoutes(stops, pairing, tokens, startIdx);
     return stops;
-  }
-
-  /**
-   * Show the full route of a duty period that flies out and back to one city ('EWR IND EWR').
-   * The grid shows only layover cities, so the route comes from the legs. The route goes on
-   * the stop that holds the grid day of the last FedEx leg of the duty period.
-   */
-  function addLoopRoutes(stops, pairing, tokens, startIdx) {
-    // Find the grid day of each FedEx leg. Search forward, because a trip can fly a number twice.
-    var legDay = new Map();
-    var d = 0, from = 0;
-    pairing.legs.forEach(function (leg) {
-      if (!/^\d+$/.test(leg.flt)) return;
-      for (var j = d; j < tokens.length; j++) {
-        var k = tokens[j].indexOf(leg.flt, j === d ? from : 0);
-        if (k !== -1) { legDay.set(leg, j); d = j; from = k + 1; return; }
-      }
-    });
-
-    var duties = [];
-    pairing.legs.forEach(function (leg) { (duties[leg.duty] = duties[leg.duty] || []).push(leg); });
-    duties.forEach(function (legs) {
-      var home = legs[0].dep;
-      if (legs.length < 2 || legs[legs.length - 1].arr !== home) return;
-      var placed = legs.filter(function (leg) { return legDay.has(leg); });
-      if (!placed.length) return;
-      var day = startIdx + legDay.get(placed[placed.length - 1]);
-      var stop = stops.find(function (s) { return s.startIdx <= day && day <= s.endIdx; });
-      var route = stop.route || (stop.route = []);
-      if (route[route.length - 1] !== home) route.push(home);
-      legs.forEach(function (leg) { route.push(leg.arr); });
-    });
-
-    stops.forEach(function (s) {
-      if (!s.route) return;
-      // The stop can end in a new city after the loop ('CDG LGG CDG FRA').
-      if (s.route[s.route.length - 1] !== s.label) s.route.push(s.label);
-      s.label = s.route.join(' ');
-    });
   }
 
   function effectiveOn(date) {
@@ -333,7 +346,10 @@
         var endIdx = ts.day;
         while (endIdx + 1 < numDays) {
           var nc = cellAt(rows[4], endIdx + 1);
-          if (nc === '---' || /^\d+$/.test(nc)) break;
+          if (/^\d+$/.test(nc)) break;
+          // The grid can mark the day of the last leg as a day off ('---') when the leg departs
+          // after midnight. That day is still part of the trip if it shows a token.
+          if (nc === '---' && ![0, 1, 2, 3].some(function (r) { return cellAt(rows[r], endIdx + 1); })) break;
           endIdx++;
         }
         while (endIdx > ts.day) {

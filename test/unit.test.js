@@ -27,18 +27,21 @@ const pairing = (num, effective, rows) => [
 ];
 
 /**
- * A 6-row LINE block. `days` has one item per grid day: '---' (day off) or the day's
- * tokens (4 or fewer). `starts` maps a day index to [pairing number, trip credit 'hh:mm'].
+ * A 6-row LINE block. `days` has one item per grid day: the day's tokens (4 or fewer), '---'
+ * (a day off), or { off: true, tokens } (a day off that still holds the last leg of a trip).
+ * `starts` maps a day index to [pairing number, trip credit 'hh:mm'].
  */
 function lineBlock(num, days, starts, lineCredit = '10:00') {
+  const toks = d => (Array.isArray(d) ? d : (d && d.tokens) || []);
+  const off = d => d === '---' || !!(d && d.off);
   const row = (label, cell) => label.padEnd(27) + '|' + days.map((d, n) => cell(d, n).padStart(4)).join(':');
-  const tok = r => d => (Array.isArray(d) && d[r]) || '';
+  const tok = r => d => toks(d)[r] || '';
   return [
     row(`LINE ${num}`, tok(0)),
     row('', tok(1)),
     row(` CR.   ${lineCredit}  TAFB  30:00`, tok(2)),
     row('', tok(3)),
-    row(' BLK.   5:00  LANDINGS 2', (d, n) => (d === '---' ? '---' : starts[n] ? String(starts[n][0]) : '')),
+    row(' BLK.   5:00  LANDINGS 2', (d, n) => (off(d) ? '---' : starts[n] ? String(starts[n][0]) : '')),
     ' DAYS OFF 1'.padEnd(28) + days.map((d, n) => ' ' + (starts[n] ? starts[n][1].replace(':', '') : '').padStart(4)).join(''),
   ];
 }
@@ -63,6 +66,8 @@ function packageText({ month = 'OCTOBER 2026', start = '2026-10-25', pairings, l
 
 const trip = pkg => pkg.lines[0].trips[0];
 const labels = pkg => trip(pkg).stops.map(s => s.label);
+/** Each stop as [label, first day, last day], with days counted from the trip start. */
+const stops = pkg => trip(pkg).stops.map(s => [s.label, s.startIdx - trip(pkg).startIdx, s.endIdx - trip(pkg).startIdx]);
 
 // ---------- contracts ----------
 
@@ -74,7 +79,7 @@ test('a package with no Captain grid: parse throws a clear error', () => {
   assert.throws(() => parseAsc(' Report for B777 schedule OCTOBER 2026   MEM BASE\n######\n######'), /Captain ONLY/);
 });
 
-test('a duty flies EWR-IND-EWR overnight: the stop shows "EWR IND EWR"', () => {
+test('two duties fly EWR-IND-EWR overnight: each shows "EWR IND EWR" from its start day', () => {
   const pkg = parseAsc(packageText({
     pairings: [pairing(21, 'OCT 25 ONLY', [
       leg('1101', 'MEM', 'EWR'), dutyEnd('EWR'),
@@ -84,11 +89,11 @@ test('a duty flies EWR-IND-EWR overnight: the stop shows "EWR IND EWR"', () => {
     ])],
     line: lineBlock(1001, [['1101', 'EWR'], ['1102'], ['1103', 'EWR', '1102'], ['1103', 'EWR'], ['1104']], { 0: [21, '10:00'] }),
   }));
-  assert.deepEqual(labels(pkg), ['EWR IND EWR', 'EWR IND EWR', 'MEM']);
+  assert.deepEqual(stops(pkg), [['EWR', 0, 0], ['EWR IND EWR', 1, 1], ['EWR IND EWR', 2, 3], ['MEM', 4, 4]]);
   assert.deepEqual(pkg.warnings, []);
 });
 
-test('a loop and a move to a new city in one stop: the stop shows both ("CDG LGG CDG FRA")', () => {
+test('a loop, then a move to a new city the next day: each shows on its own day', () => {
   const pkg = parseAsc(packageText({
     pairings: [pairing(22, 'OCT 25 ONLY', [
       leg('2201', 'MEM', 'CDG'), dutyEnd('CDG'),
@@ -98,10 +103,10 @@ test('a loop and a move to a new city in one stop: the stop shows both ("CDG LGG
     ])],
     line: lineBlock(1001, [['2201'], ['CDG'], ['2202'], ['2203', 'CDG', '2204', 'FRA'], ['2204']], { 0: [22, '10:00'] }),
   }));
-  assert.deepEqual(labels(pkg), ['CDG', 'CDG LGG CDG FRA', 'MEM']);
+  assert.deepEqual(stops(pkg), [['CDG', 0, 1], ['CDG LGG CDG', 2, 2], ['FRA', 3, 3], ['MEM', 4, 4]]);
 });
 
-test('a duty with two legs that ends in a new city: the stop shows only that city', () => {
+test('a duty with two legs that ends in a new city: the stop shows the full route', () => {
   const pkg = parseAsc(packageText({
     pairings: [pairing(30, 'OCT 25 ONLY', [
       leg('1111', 'MEM', 'EWR'), leg('2222', 'EWR', 'ORD'), dutyEnd('ORD'),
@@ -109,7 +114,31 @@ test('a duty with two legs that ends in a new city: the stop shows only that cit
     ])],
     line: lineBlock(1001, [['1111', '2222', 'ORD'], ['3333']], { 0: [30, '10:00'] }),
   }));
-  assert.deepEqual(labels(pkg), ['ORD', 'MEM']);
+  assert.deepEqual(labels(pkg), ['MEM EWR ORD', 'MEM']);
+});
+
+test('a two-stop duty, a layover day, then a loop: each route shows on its own days', () => {
+  const pkg = parseAsc(packageText({
+    pairings: [pairing(31, 'OCT 25 ONLY', [
+      leg('3101', 'MEM', 'KIX'), dutyEnd('KIX'),
+      leg('3102', 'KIX', 'PEK'), leg('3103', 'PEK', 'ICN'), dutyEnd('ICN'),
+      leg('3104', 'ICN', 'PEK'), leg('3105', 'PEK', 'ICN'), dutyEnd('ICN'),
+      leg('3106', 'ICN', 'MEM'), dutyEnd(),
+    ])],
+    line: lineBlock(1001, [['3101', 'KIX'], ['3102', '3103'], ['ICN'], ['3104', '3105'], ['ICN', '3106']], { 0: [31, '10:00'] }),
+  }));
+  assert.deepEqual(stops(pkg), [['KIX', 0, 0], ['KIX PEK ICN', 1, 2], ['ICN PEK ICN', 3, 3], ['MEM', 4, 4]]);
+});
+
+test('the last leg departs on a day that the grid marks as a day off: the trip keeps that day', () => {
+  const pkg = parseAsc(packageText({
+    pairings: [pairing(32, 'OCT 25 ONLY', [
+      leg('3201', 'MEM', 'KIX'), dutyEnd('KIX'),
+      leg('3202', 'KIX', 'MEM'), dutyEnd(),
+    ])],
+    line: lineBlock(1001, [['3201', 'KIX'], ['KIX'], { off: true, tokens: ['3202'] }, '---'], { 0: [32, '10:00'] }),
+  }));
+  assert.deepEqual(stops(pkg), [['KIX', 0, 1], ['MEM', 2, 2]]);
 });
 
 test('a JAN package and a pairing effective DEC 29: the Dec 29 trip uses that pairing', () => {

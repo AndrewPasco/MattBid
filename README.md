@@ -55,8 +55,9 @@ hosted on GitHub Pages: https://andrewpasco.github.io/MattBid/
 - Colors: blue = front-end deadhead, green = back-end deadhead, orange = both,
   yellow = no deadhead. A white dot in the middle = a deadhead inside the trip.
   Only legs with an airline code (`UA5672`, `DL0084`) count as deadheads.
-- Each trip shows the city of each stop. If a duty flies out and back to the same city, the
-  stop shows the full route, for example `EWR IND EWR`.
+- Each trip shows one stop for each duty, from the day that the duty starts: the city where
+  the duty lands. If a duty lands in two or more cities, the stop shows the full route, for
+  example `KIX PEK ICN` or `EWR IND EWR`. Deadhead connections show too (`MEM ORD ANC`).
 - Tap a trip to open the pairing details and the raw pairing text.
 - If the parser finds a problem in the package (for example, trip credits that do not add up
   to the line credit), the count shows `⚠ N parse warnings`. Tap it to see the list.
