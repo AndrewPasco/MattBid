@@ -39,19 +39,19 @@ hosted on GitHub Pages: https://andrewpasco.github.io/MattBid/
    show in it.
 4. Save the `.asc` file to the Files app (iCloud Drive or On My iPad).
 5. In MattBid, tap `Choose File` and pick the `.asc` file. MattBid keeps each month that you
-   import. Use the list at the top to change the month.
+   import. Use the list at the top to change the month. Each change saves at once on this
+   iPad. Other devices do not get it.
 6. After one launch with a network, MattBid also opens with no network (for example, in
    airplane mode). When the network is back, the next launch gets the newest version.
-7. `Save backup` saves the package and your selections to a `.json` file. In the Home Screen
-   app, the share sheet opens: tap `Save to Files`. To restore the backup (for example, on a
-   new iPad), tap `Choose File` and pick that file.
-8. Export: `Copy` puts the line numbers on the clipboard. `Download` saves a `.txt` file. In
+7. Export: `Copy` puts the line numbers on the clipboard. `Download` saves a `.txt` file. In
    the Home Screen app, tap `Save to Files` in the share sheet.
 
 ## Use
 
-- Import: choose the `.asc` file. The app keeps the text in `localStorage` so a reload does
-  not need a new import.
+- Import: choose the `.asc` file. The app keeps the package in the browser storage
+  (IndexedDB), so a reload does not need a new import. Your selections and filters save at
+  once. All data stays in this browser on this device. Other devices and browsers do not
+  see it.
 - Colors: blue = front-end deadhead, green = back-end deadhead, orange = both,
   yellow = no deadhead. A white dot in the middle = a deadhead inside the trip.
   Only legs with an airline code (`UA5672`, `DL0084`) count as deadheads.
@@ -64,7 +64,8 @@ hosted on GitHub Pages: https://andrewpasco.github.io/MattBid/
   highlights those days or hides lines that work on them.
 - `DH city`: type an airport code. `exclude` hides lines with a deadhead through that city,
   `only` shows only those lines.
-- Select lines with the checkbox. Drag lines and tier breaks in the `Selected` panel.
+- Select a line with its checkbox. The line moves from the list to the `Selected` panel.
+  `✕` in `Selected` moves it back. Drag lines and tier breaks in the `Selected` panel.
   A selected line that a new import of the month removed shows `not in this package`. The
   export still includes it, so remove it with `✕`.
 - `Export bid` gives one line number per row, tiers flattened top to bottom. Check

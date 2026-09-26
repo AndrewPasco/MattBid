@@ -87,8 +87,7 @@
   <h1>MattBid</h1>
   <select id="month" title="Stored months"></select>
   <button id="delMonth" title="Forget this month" hidden>✕</button>
-  <input type="file" id="file" title="Import a bid package (.asc) or a MattBid backup (.json)">
-  <button id="backup" title="Save the package and your selections to a file">Save backup</button>
+  <input type="file" id="file" title="Import a bid package (.asc)">
   <label>DH city <input id="dhCity" maxlength="4" placeholder="ORD">
     <select id="dhMode"><option value="exclude">exclude</option><option value="only">only</option></select></label>
   <label>Days off <select id="daysOffMode"><option value="highlight">highlight</option><option value="hide">hide lines</option></select>
@@ -133,7 +132,7 @@
 <script src="parse.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-let pkg = null, pkgText = '';
+let pkg = null;
 const freshState = () => ({ selected: [], filters: { dhCity: '', dhMode: 'exclude', daysOff: [], daysOffMode: 'highlight' }, sort: 'line', showReserve: true, vto: false });
 let state = freshState();
 
@@ -177,7 +176,7 @@ async function refreshMonths() {
   $('#delMonth').hidden = !pkg;
 }
 function show(text) {
-  pkg = parseAsc(text); pkgText = text;
+  pkg = parseAsc(text);
   $('#empty').hidden = true;
   load(); render();
   navigator.storage?.persist?.(); // ask the browser to keep the stored months (a Home Screen app gets it)
@@ -195,22 +194,8 @@ async function openMonth(title) {
   localStorage.setItem('mattbid:last', title);
   refreshMonths();
 }
-// A backup is JSON with the package text and the selections. Any other file is a package.
-async function openFile(text) {
-  if (!text.trimStart().startsWith('{')) return importText(text);
-  const b = JSON.parse(text);
-  if (b.app !== 'mattbid') throw new Error('This JSON file is not a MattBid backup.');
-  if (!confirm(`Restore ${b.title} and its selections from this backup?`)) return;
-  localStorage.setItem('mattbid:' + b.title, JSON.stringify(b.state));
-  await importText(b.text);
-}
 const fail = err => alert(`MattBid could not open the package: ${err.message}`);
-$('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(openFile).catch(fail); e.target.value = ''; });
-$('#backup').onclick = () => { // no await before download(): the share sheet needs the tap to be active
-  if (!pkg) return alert('Import a bid package first.');
-  const b = { app: 'mattbid', title: pkg.title, savedAt: new Date().toISOString(), text: pkgText, state };
-  download(new Blob([JSON.stringify(b)], { type: 'application/json' }), `mattbid-${pkg.title.replace(/\W+/g, '-')}.json`);
-};
+$('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(importText).catch(fail); e.target.value = ''; });
 $('#month').onchange = e => openMonth(e.target.value).catch(fail);
 $('#delMonth').onclick = async () => {
   if (!pkg || !confirm(`Forget ${pkg.title} and its selections?`)) return;
@@ -259,14 +244,16 @@ function barHtml(line, header) {
 function metaHtml(line, checkbox) {
   const l2 = line.reserve ? `reserve ${line.letter} · RLG ${line.credit}` : `CR ${line.credit} · TAFB ${line.tafb}`;
   const l3 = line.reserve ? `${line.daysOff} off` : `${line.daysOff} off · ${line.trips.length} trip${line.trips.length === 1 ? '' : 's'}`;
-  return `<div class="meta">${checkbox ? `<input type="checkbox" data-num="${line.num}" ${state.selected.some(s => s.num === line.num) ? 'checked' : ''}>` : ''}<b>${line.num}</b>${line.flag}
+  return `<div class="meta">${checkbox ? `<input type="checkbox" data-num="${line.num}">` : ''}<b>${line.num}</b>${line.flag}
     <small>${l2}</small><small>${l3}</small></div>`;
 }
 const headRow = () => `<div class="row head"><div class="meta">line</div>${barHtml(null, true)}</div>`;
 function render() {
   if (!pkg) return;
-  const visible = sorted(pkg.lines.filter(passes)), w = pkg.warnings.length;
-  $('#count').textContent = `${visible.length} / ${pkg.lines.length} shown` + (w ? ` · ⚠ ${w} parse warning${w === 1 ? '' : 's'} (tap)` : '');
+  // A selected line shows only in Selected. Its ✕ button moves it back to this list.
+  const sel = new Set(state.selected.map(s => s.num)), rest = pkg.lines.filter(l => !sel.has(l.num));
+  const visible = sorted(rest.filter(passes)), w = pkg.warnings.length;
+  $('#count').textContent = `${visible.length} / ${rest.length} shown` + (w ? ` · ⚠ ${w} parse warning${w === 1 ? '' : 's'} (tap)` : '');
   $('#lines').innerHTML = headRow() + visible.map(l => `<div class="row">${metaHtml(l, true)}${barHtml(l)}</div>`).join('');
   renderSel();
   save();
@@ -297,9 +284,8 @@ $('#count').onclick = () => { if (pkg && pkg.warnings.length) alert(pkg.warnings
 $('#selHead').addEventListener('click', onDayOrTrip);
 $('#lines').addEventListener('change', e => {
   const cb = e.target.closest('input[type=checkbox]'); if (!cb) return;
-  const num = +cb.dataset.num;
-  if (cb.checked) state.selected.push({ t: 'line', num }); else state.selected = state.selected.filter(s => s.num !== num);
-  renderSel(); save();
+  state.selected.push({ t: 'line', num: +cb.dataset.num });
+  render(); // the line moves from this list to Selected
 });
 $('#sel').addEventListener('click', e => {
   const nm = e.target.closest('[data-name]');
