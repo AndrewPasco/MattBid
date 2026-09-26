@@ -133,7 +133,7 @@
 <script src="parse.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-let pkg = null;
+let pkg = null, pkgText = '';
 const freshState = () => ({ selected: [], filters: { dhCity: '', dhMode: 'exclude', daysOff: [], daysOffMode: 'highlight' }, sort: 'line', showReserve: true, vto: false });
 let state = freshState();
 
@@ -177,7 +177,7 @@ async function refreshMonths() {
   $('#delMonth').hidden = !pkg;
 }
 function show(text) {
-  pkg = parseAsc(text);
+  pkg = parseAsc(text); pkgText = text;
   $('#empty').hidden = true;
   load(); render();
   navigator.storage?.persist?.(); // ask the browser to keep the stored months (a Home Screen app gets it)
@@ -206,9 +206,9 @@ async function openFile(text) {
 }
 const fail = err => alert(`MattBid could not open the package: ${err.message}`);
 $('#file').addEventListener('change', e => { const f = e.target.files[0]; if (f) f.text().then(openFile).catch(fail); e.target.value = ''; });
-$('#backup').onclick = async () => {
+$('#backup').onclick = () => { // no await before download(): the share sheet needs the tap to be active
   if (!pkg) return alert('Import a bid package first.');
-  const b = { app: 'mattbid', title: pkg.title, savedAt: new Date().toISOString(), text: (await pkgGet(pkg.title)).text, state };
+  const b = { app: 'mattbid', title: pkg.title, savedAt: new Date().toISOString(), text: pkgText, state };
   download(new Blob([JSON.stringify(b)], { type: 'application/json' }), `mattbid-${pkg.title.replace(/\W+/g, '-')}.json`);
 };
 $('#month').onchange = e => openMonth(e.target.value).catch(fail);
@@ -354,6 +354,12 @@ function bidText() {
 $('#export').onclick = () => { $('#exportText').value = bidText(); $('#copyBtn').textContent = 'Copy'; exportDlg.showModal(); };
 $('#copyBtn').onclick = () => navigator.clipboard.writeText(bidText()).then(() => $('#copyBtn').textContent = 'Copied', () => alert('Copy failed; select the text and copy manually.'));
 function download(blob, name) {
+  const file = new File([blob], name, { type: blob.type });
+  // In the Home Screen app, the share sheet ('Save to Files') is the documented way to save a file.
+  if ((navigator.standalone || matchMedia('(display-mode: standalone)').matches) && navigator.canShare?.({ files: [file] })) {
+    navigator.share({ files: [file] }).catch(err => { if (err.name !== 'AbortError') alert(`Could not save the file: ${err.message}`); });
+    return;
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
 }

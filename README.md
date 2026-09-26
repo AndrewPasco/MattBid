@@ -31,19 +31,22 @@ hosted on GitHub Pages: https://andrewpasco.github.io/MattBid/
 
 ## iPad
 
-1. Open https://andrewpasco.github.io/MattBid/ in Safari.
-2. Tap the share button, then `Add to Home Screen`, so it opens like an app.
-3. Always open MattBid from the Home Screen icon. The Home Screen app has its own storage, so
-   a package that you import in a browser tab does not show in it.
+1. Open https://andrewpasco.github.io/MattBid/ in Safari. You can use Chrome for other sites.
+2. Tap the share button, then `Add to Home Screen`. Keep `Open as Web App` on.
+3. Always open MattBid from the Home Screen icon. It must open full screen, with no address
+   bar. If it opens in a browser tab, remove the icon and do steps 1 and 2 again. The Home
+   Screen app has its own storage, so a package that you import in a browser tab does not
+   show in it.
 4. Save the `.asc` file to the Files app (iCloud Drive or On My iPad).
 5. In MattBid, tap `Choose File` and pick the `.asc` file. MattBid keeps each month that you
    import. Use the list at the top to change the month.
 6. After one launch with a network, MattBid also opens with no network (for example, in
    airplane mode). When the network is back, the next launch gets the newest version.
-7. `Save backup` saves the package and your selections to a `.json` file in Files. To restore
-   them (for example, on a new iPad), tap `Choose File` and pick that file.
-8. Export: `Copy` puts the line numbers on the clipboard; `Download` saves a `.txt` file to
-   Files.
+7. `Save backup` saves the package and your selections to a `.json` file. In the Home Screen
+   app, the share sheet opens: tap `Save to Files`. To restore the backup (for example, on a
+   new iPad), tap `Choose File` and pick that file.
+8. Export: `Copy` puts the line numbers on the clipboard. `Download` saves a `.txt` file. In
+   the Home Screen app, tap `Save to Files` in the share sheet.
 
 ## Use
 
