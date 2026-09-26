@@ -10,6 +10,7 @@ install. Read `README.md` first for the user workflow.
 - `sw.js`: the service worker for offline launch. It lists the files that the app loads.
 - `manifest.json`: makes the Home Screen icon open the app as a standalone web app.
 - `vendor/Sortable.min.js`: SortableJS 1.15.6 (MIT), the same bytes as the npm package.
+- `worker/`: the sync server, a Cloudflare Worker with one Durable Object for each sync code.
 - `test/unit.test.js`: contract tests on synthetic packages. They run on every machine.
 - `test/run.js` and `test/assertions.js`: checks on a cut of a real package and on the full package.
 
@@ -30,6 +31,23 @@ install. Read `README.md` first for the user workflow.
 
    For a different package, set `MATTBID_ASC=<path>`. Then `run.js` does only the checks that
    apply to all packages.
+
+3. If you change `worker/`, run its tests. They start `wrangler dev` (the local runtime, with no
+   account and no network):
+
+   ```bash
+   cd worker && npm ci && npm test
+   ```
+
+## Deploy the sync server
+
+- Run `npm run deploy` in `worker/` (the pinned wrangler). It needs `wrangler login` to the owner's Cloudflare
+  account. The URL is `https://mattbid-sync.mattbid-sync.workers.dev`, and `SYNC_URL` in
+  `index.html` uses it.
+- An iPad can run an old copy of the app from the service worker cache. If you change the API,
+  keep the old requests working.
+- `save()` in `index.html` changes `updatedAt` only when the state changes. Keep it that way: if
+  a device changes `updatedAt` without an edit, its old state overwrites newer edits.
 
 ## Rules for new tests
 

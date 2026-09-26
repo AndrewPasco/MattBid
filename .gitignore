@@ -1,3 +1,5 @@
 .local/
 .DS_Store
 test/fixture.asc
+worker/node_modules/
+worker/.wrangler/

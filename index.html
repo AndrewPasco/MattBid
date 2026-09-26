@@ -88,6 +88,7 @@
   <h1>MattBid</h1>
   <select id="month" title="Stored months"></select>
   <button id="delMonth" title="Forget this month" hidden>✕</button>
+  <button id="syncBtn" title="Keep your selections the same on your other devices">Sync</button>
   <input type="file" id="file" title="Import a bid package (.asc)">
   <label>DH city <input id="dhCity" maxlength="4" placeholder="ORD">
     <select id="dhMode"><option value="exclude">exclude</option><option value="only">only</option></select></label>
@@ -125,6 +126,10 @@
   </section>
 </main>
 
+<dialog id="syncDlg"><div class="body"><h3>Sync</h3><p id="syncInfo"></p>
+  <p><button id="syncOn">Turn on sync</button> <button id="syncShare">Send the link to another device</button> <button id="syncOff">Turn off sync</button></p>
+  <p><label>Code or link from another device <input id="syncCode" size="30"></label> <button id="syncJoin">Use it</button></p></div>
+  <div class="actions"><button onclick="syncDlg.close()">Close</button></div></dialog>
 <dialog id="tripDlg"><div class="body" id="tripBody"></div><div class="actions"><button onclick="tripDlg.close()">Close</button></div></dialog>
 <dialog id="exportDlg"><div class="body"><h3>Bid</h3><textarea id="exportText" readonly></textarea></div>
   <div class="actions"><button id="copyBtn">Copy</button><button id="dlBtn">Download</button><button onclick="exportDlg.close()">Close</button></div></dialog>
@@ -139,10 +144,18 @@ let state = freshState();
 
 // ---------- per-month state (localStorage, small) ----------
 const key = () => 'mattbid:' + (pkg ? pkg.title : '');
-function save() { try { localStorage.setItem(key(), JSON.stringify(state)); } catch (e) {} }
+let savedJson = ''; // the state as last saved: updatedAt changes only when the state changes
+function save() {
+  const json = JSON.stringify({ ...state, updatedAt: 0 });
+  if (json === savedJson) return;
+  savedJson = json; state.updatedAt = Date.now();
+  try { localStorage.setItem(key(), JSON.stringify(state)); } catch (e) {}
+  syncSoon();
+}
 function load() {
   state = freshState();
   try { const s = localStorage.getItem(key()); if (s) Object.assign(state, JSON.parse(s)); } catch (e) {}
+  savedJson = JSON.stringify({ ...state, updatedAt: 0 });
   $('#dhCity').value = state.filters.dhCity; $('#dhMode').value = state.filters.dhMode;
   $('#daysOffMode').value = state.filters.daysOffMode; $('#sort').value = state.sort;
   $('#showReserve').checked = state.showReserve; $('#vto').checked = state.vto;
@@ -353,13 +366,64 @@ function download(blob, name) {
 }
 $('#dlBtn').onclick = () => download(new Blob([bidText()], { type: 'text/plain' }), `bid-${(pkg && pkg.title || 'mattbid').replace(/\W+/g, '-')}.txt`);
 
+// ---------- sync: each device with the same sync code gets the newest state of each month ----------
+const SYNC_URL = 'https://mattbid-sync.mattbid-sync.workers.dev/s/';
+const syncKey = () => localStorage.getItem('mattbid:sync');
+let syncTimer;
+function syncSoon() { if (syncKey()) { clearTimeout(syncTimer); syncTimer = setTimeout(sync, 2000); } }
+/** Send the state of each stored month. The server keeps the newest state of each month and returns them all. */
+async function sync() {
+  const k = syncKey(); if (!k) return renderSync();
+  const months = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const name = localStorage.key(i), title = name.slice('mattbid:'.length);
+    if (!name.startsWith('mattbid:') || ['last', 'sync', 'asc'].includes(title)) continue;
+    try { const s = JSON.parse(localStorage.getItem(name)); if (s.updatedAt) months[title] = { updatedAt: s.updatedAt, state: s }; } catch (e) {}
+  }
+  try {
+    const res = await fetch(SYNC_URL + k, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ months }) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    let reload = false;
+    for (const [title, m] of Object.entries((await res.json()).months)) {
+      if (months[title] && m.updatedAt <= months[title].updatedAt) continue;
+      localStorage.setItem('mattbid:' + title, JSON.stringify(m.state));
+      if (pkg && title === pkg.title) reload = true;
+    }
+    if (reload) { load(); render(); }
+    renderSync('✓');
+  } catch (e) { renderSync('⚠'); } // no network: the next change, launch, or 'online' event tries again
+}
+function renderSync(mark = '') {
+  const k = syncKey();
+  $('#syncBtn').textContent = k ? `Sync ${mark}`.trim() : 'Sync';
+  $('#syncInfo').textContent = k ? `Sync is on. Code: ${k}` : 'Sync is off. Your selections stay on this device.';
+  $('#syncOn').hidden = !!k; $('#syncShare').hidden = $('#syncOff').hidden = !k;
+}
+const useSyncKey = k => { localStorage.setItem('mattbid:sync', k); sync(); };
+$('#syncBtn').onclick = () => { renderSync(); syncDlg.showModal(); };
+$('#syncOn').onclick = () => useSyncKey(btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
+$('#syncShare').onclick = () => {
+  const url = `${location.origin}${location.pathname}#sync=${syncKey()}`;
+  (navigator.share ? navigator.share({ title: 'MattBid sync', url }) : navigator.clipboard.writeText(url).then(() => alert('Link copied.'))).catch(() => {});
+};
+$('#syncOff').onclick = () => { localStorage.removeItem('mattbid:sync'); renderSync(); };
+$('#syncJoin').onclick = () => {
+  const m = $('#syncCode').value.trim().match(/([A-Za-z0-9_-]{22,64})$/); // a code, or a link that ends with one
+  if (!m) return alert('That is not a sync code or link.');
+  $('#syncCode').value = ''; useSyncKey(m[1]);
+};
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync(); });
+addEventListener('online', sync);
+const linked = location.hash.match(/^#sync=([A-Za-z0-9_-]{22,64})$/); // a link from another device
+if (linked) { localStorage.setItem('mattbid:sync', linked[1]); history.replaceState(null, '', location.pathname); }
+
 // ---------- startup: migrate the v0 single-package key, then open the last month ----------
 (async () => {
   let old = null; try { old = localStorage.getItem('mattbid:asc'); } catch (e) {}
   if (old) { await importText(old); localStorage.removeItem('mattbid:asc'); return; }
   const last = localStorage.getItem('mattbid:last');
   if (last) await openMonth(last);
-})().catch(fail).finally(refreshMonths); // also fills the month list when the last month is gone
+})().catch(fail).finally(() => { refreshMonths(); sync(); }); // refreshMonths also fills the list when the last month is gone
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js'); // offline launch
 </script>
 </body>

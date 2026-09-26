@@ -8,6 +8,7 @@ export, shows each line as a calendar bar, and exports an ordered bid.
 - `index.html`: the app (markup, styles, and logic).
 - `parse.js`: the `.asc` parser. `parseAsc(text)` returns the package object.
 - `sw.js` and `manifest.json`: offline launch and the Home Screen app. `vendor/`: SortableJS.
+- `worker/`: the sync server (a Cloudflare Worker). See "Sync" below.
 - `test/parse.test.html`: browser test page. `test/run.js`: the same checks under Node.
 - `test/unit.test.js`: contract tests on synthetic packages. `AGENTS.md` gives the test rules.
 - `test/fixture.asc`: a small cut of a real package. It is not in git. Create it with
@@ -46,6 +47,23 @@ hosted on GitHub Pages: https://andrewpasco.github.io/MattBid/
 7. Export: `Copy` puts the line numbers on the clipboard. `Download` saves a `.txt` file. In
    the Home Screen app, tap `Save to Files` in the share sheet.
 
+## Sync (optional)
+
+Sync keeps your selections, tiers, and filters the same on all your devices. The FedEx package
+does not sync: import the `.asc` file on each device.
+
+1. In the iPad Home Screen app, tap `Sync`, then `Turn on sync`.
+2. Tap `Send the link to another device`, and send the link to your PC (for example, by email).
+3. On the PC, open the link. Then import the same `.asc` file. Your selections show.
+4. To join a sync from the iPad Home Screen app, tap `Sync`, paste the link or the code in
+   `Code or link from another device`, and tap `Use it`. A link that you tap opens in Safari,
+   not in the Home Screen app.
+
+A change syncs 2 seconds after you make it, and again each time you open the app. With no
+network, the button shows `Sync ⚠`, and MattBid tries again when the network is back. If two
+devices change the same month, the last change wins. Anyone with the code can see and change
+your selections, so keep the code private.
+
 ## Use
 
 - Import: choose the `.asc` file. The app keeps the package in the browser storage
@@ -82,3 +100,5 @@ node test/run.js
 The first command runs on every machine. The second command checks the fixture and, when
 `~/Downloads/2026_Oct_B777_MEM_LINES.asc` exists (or `MATTBID_ASC` gives a package path), the
 full package: counts, stop labels, and parse warnings.
+
+For the sync server, also run `npm ci` and `npm test` in `worker/`.

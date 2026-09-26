@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mattbid-sync",
+  "main": "src/index.js",
+  // The newest date that the pinned local runtime (workerd 2026-09-25) supports.
+  "compatibility_date": "2026-09-25",
+  "durable_objects": {
+    "bindings": [{ "name": "SYNC", "class_name": "SyncDoc" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SyncDoc"] }]
+}
