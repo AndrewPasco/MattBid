@@ -52,17 +52,16 @@ hosted on GitHub Pages: https://andrewpasco.github.io/MattBid/
 Sync keeps your selections, tiers, and filters the same on all your devices. The FedEx package
 does not sync: import the `.asc` file on each device.
 
-1. In the iPad Home Screen app, tap `Sync`, then `Turn on sync`.
-2. Tap `Send the link to another device`, and send the link to your PC (for example, by email).
-3. On the PC, open the link. Then import the same `.asc` file. Your selections show.
-4. To join a sync from the iPad Home Screen app, tap `Sync`, paste the link or the code in
-   `Code or link from another device`, and tap `Use it`. A link that you tap opens in Safari,
-   not in the Home Screen app.
+1. On each device, tap `Sync`, type the same sync password (10 or more characters), and tap
+   `Turn on sync`. Your password manager (for example, iCloud Keychain) can save the password
+   and fill it in on your other devices.
+2. Import the same `.asc` file on each device. Your selections show.
 
 A change syncs 2 seconds after you make it, and again each time you open the app. With no
 network, the button shows `Sync ⚠`, and MattBid tries again when the network is back. If two
-devices change the same month, the last change wins. Anyone with the code can see and change
-your selections, so keep the code private.
+devices change the same month, the last change wins. Anyone who knows the password can see and
+change your selections, so use a password that is hard to guess. MattBid keeps only a code made
+from the password, not the password.
 
 ## Use
 

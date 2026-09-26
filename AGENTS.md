@@ -46,6 +46,10 @@ install. Read `README.md` first for the user workflow.
   `index.html` uses it.
 - An iPad can run an old copy of the app from the service worker cache. If you change the API,
   keep the old requests working.
+- The sync code is SHA-256 of `mattbid-sync:` plus the sync password, as base64url
+  (`syncKeyFor` in `index.html`). If you change this, each device loses its sync until the
+  user types the password again.
+- The Worker allows 60 requests a minute for each client address (the `LIMITER` binding).
 - `save()` in `index.html` changes `updatedAt` only when the state changes. Keep it that way: if
   a device changes `updatedAt` without an edit, its old state overwrites newer edits.
 

@@ -126,10 +126,12 @@
   </section>
 </main>
 
-<dialog id="syncDlg"><div class="body"><h3>Sync</h3><p id="syncInfo"></p>
-  <p><button id="syncOn">Turn on sync</button> <button id="syncShare">Send the link to another device</button> <button id="syncOff">Turn off sync</button></p>
-  <p><label>Code or link from another device <input id="syncCode" size="30"></label> <button id="syncJoin">Use it</button></p></div>
-  <div class="actions"><button onclick="syncDlg.close()">Close</button></div></dialog>
+<dialog id="syncDlg"><form method="dialog"><div class="body"><h3>Sync</h3><p id="syncInfo"></p>
+  <input name="username" autocomplete="username" value="MattBid" hidden>
+  <p id="syncSet"><label>Sync password <input type="password" id="syncPass" name="password" autocomplete="current-password" pattern=".{10,}" title="10 or more characters" required></label>
+    <button value="on">Turn on sync</button></p>
+  <p id="syncUnset"><button value="off" formnovalidate>Turn off sync</button></p></div>
+  <div class="actions"><button value="" formnovalidate>Close</button></div></form></dialog>
 <dialog id="tripDlg"><div class="body" id="tripBody"></div><div class="actions"><button onclick="tripDlg.close()">Close</button></div></dialog>
 <dialog id="exportDlg"><div class="body"><h3>Bid</h3><textarea id="exportText" readonly></textarea></div>
   <div class="actions"><button id="copyBtn">Copy</button><button id="dlBtn">Download</button><button onclick="exportDlg.close()">Close</button></div></dialog>
@@ -396,26 +398,24 @@ async function sync() {
 function renderSync(mark = '') {
   const k = syncKey();
   $('#syncBtn').textContent = k ? `Sync ${mark}`.trim() : 'Sync';
-  $('#syncInfo').textContent = k ? `Sync is on. Code: ${k}` : 'Sync is off. Your selections stay on this device.';
-  $('#syncOn').hidden = !!k; $('#syncShare').hidden = $('#syncOff').hidden = !k;
+  $('#syncInfo').textContent = k ? 'Sync is on. Use the same password on your other devices.'
+    : 'Sync is off. Your selections stay on this device. To sync, use the same password (10 or more characters) on each device.';
+  $('#syncSet').hidden = !!k; $('#syncUnset').hidden = !k;
 }
-const useSyncKey = k => { localStorage.setItem('mattbid:sync', k); sync(); };
+/** The sync code for a password: SHA-256, as base64url. The same password gives the same code on each device. */
+async function syncKeyFor(password) {
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('mattbid-sync:' + password));
+  return btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
 $('#syncBtn').onclick = () => { renderSync(); syncDlg.showModal(); };
-$('#syncOn').onclick = () => useSyncKey(btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
-$('#syncShare').onclick = () => {
-  const url = `${location.origin}${location.pathname}#sync=${syncKey()}`;
-  (navigator.share ? navigator.share({ title: 'MattBid sync', url }) : navigator.clipboard.writeText(url).then(() => alert('Link copied.'))).catch(() => {});
-};
-$('#syncOff').onclick = () => { localStorage.removeItem('mattbid:sync'); renderSync(); };
-$('#syncJoin').onclick = () => {
-  const m = $('#syncCode').value.trim().match(/([A-Za-z0-9_-]{22,64})$/); // a code, or a link that ends with one
-  if (!m) return alert('That is not a sync code or link.');
-  $('#syncCode').value = ''; useSyncKey(m[1]);
+// A form submit closes the dialog, so a password manager can offer to save the password.
+syncDlg.onclose = async () => {
+  if (syncDlg.returnValue === 'on') { localStorage.setItem('mattbid:sync', await syncKeyFor($('#syncPass').value)); sync(); }
+  if (syncDlg.returnValue === 'off') { localStorage.removeItem('mattbid:sync'); renderSync(); }
+  $('#syncPass').value = '';
 };
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync(); });
 addEventListener('online', sync);
-const linked = location.hash.match(/^#sync=([A-Za-z0-9_-]{22,64})$/); // a link from another device
-if (linked) { localStorage.setItem('mattbid:sync', linked[1]); history.replaceState(null, '', location.pathname); }
 
 // ---------- startup: migrate the v0 single-package key, then open the last month ----------
 (async () => {

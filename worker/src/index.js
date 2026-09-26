@@ -2,7 +2,7 @@
  * MattBid sync: one document per sync key, with the newest state of each month.
  *   GET /s/<key>  returns { months: { <title>: { updatedAt, state } } }
  *   PUT /s/<key>  merges a document of the same shape and returns the result
- * There is no login. The key (22 or more random base64url characters) is the secret.
+ * There is no login. The key (22 to 64 base64url characters, from the sync password) is the secret.
  */
 import { DurableObject } from 'cloudflare:workers';
 
@@ -40,6 +40,10 @@ export default {
     } : {};
     const reply = (body, status = 200) => Response.json(body, { status, headers });
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
+    // Slow down password guessing. Cloudflare advises against IP keys when many users share an
+    // address; MattBid has one user, so an IP key is correct here.
+    const ip = request.headers.get('CF-Connecting-IP') || 'local';
+    if (!(await env.LIMITER.limit({ key: ip })).success) return reply({ error: 'too many requests' }, 429);
 
     const key = new URL(request.url).pathname.match(KEY);
     if (!key) return reply({ error: 'not found' }, 404);

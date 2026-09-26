@@ -71,3 +71,11 @@ test('CORS: the app origin gets the headers, another origin does not', async () 
   const other = await fetch(`${BASE}/s/${newKey()}`, { headers: { Origin: 'https://example.com' } });
   assert.equal(other.headers.get('Access-Control-Allow-Origin'), null);
 });
+
+// Keep this test last: it uses up the request limit of this client for one minute.
+test('more than 60 requests in a minute from one client: the Worker answers 429', async () => {
+  const codes = [];
+  for (let i = 0; i < 70; i++) codes.push((await get(newKey())).status);
+  assert.ok(codes.includes(429), `no 429 in ${codes.length} requests`);
+  assert.equal(codes[0], 200);
+});
