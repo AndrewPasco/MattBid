@@ -167,8 +167,12 @@ function load() {
 // ---------- package store (IndexedDB, one record per month) ----------
 function idb() {
   return new Promise((res, rej) => {
-    const r = indexedDB.open('mattbid', 1);
-    r.onupgradeneeded = () => r.result.createObjectStore('packages', { keyPath: 'title' });
+    const r = indexedDB.open('mattbid', 2);
+    r.onupgradeneeded = e => {
+      const db = r.result;
+      if (e.oldVersion < 1) db.createObjectStore('packages', { keyPath: 'title' });
+      if (e.oldVersion < 2) db.createObjectStore('handles', { keyPath: 'key' }); // unused now; kept so browsers already on v2 don't hit a VersionError
+    };
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   });
 }
