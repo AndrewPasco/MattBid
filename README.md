@@ -89,12 +89,24 @@ from the password, not the password.
   `✕` in `Selected` moves it back. Drag lines and tier breaks in the `Selected` panel.
   A selected line that a new import of the month removed shows `not in this package`. The
   export still includes it, so remove it with `✕`.
-- `Export bid` gives your ranks in the layout of the bid form: one slot for each line number,
-  5 slots in a row, tab-separated, with your rank (1 = top choice, tiers flattened top to
-  bottom) in the slot of each selected line and the other slots empty. Line 1043 is slot 043 of
-  the first grid, so the grid for lines 1001-1285 has slots 001-285. Each thousand block
-  (1xxx, 7xxx reserve) is its own grid, with an empty row between grids. Check `add 9952 (VTO)`
-  to add a last row `9952`, a tab, and its rank (the last choice).
+- `Export bid` gives one line number per row, tiers flattened top to bottom. Check
+  `add 9952 (VTO)` to append 9952 as the last choice.
+
+## Fill the bid form
+
+The bid form has one box for each choice (001, 002, ...), and a paste fills only one box. A
+bookmark fills all of them:
+
+1. One time: in `Export bid`, tap `Copy form filler`. Make a bookmark of any page, edit the
+   bookmark, and replace its address with the copied text. Name it `Fill bid`. (iPad: Safari,
+   share button, `Add Bookmark`, then long-press the bookmark in the Bookmarks list and `Edit`.)
+2. Each time: in `Export bid`, tap `Copy`. Open the bid form and tap the `Fill bid` bookmark.
+3. Paste in the small box that appears, then tap `Fill`. The message says how many lines it
+   filled and how many boxes it found. If the two numbers differ or the boxes look wrong, the
+   form's boxes are not plain text boxes in page order.
+
+It fills the visible text boxes in page order and replaces what they hold, so check the first
+and last boxes before you submit.
 
 ## Test
 
