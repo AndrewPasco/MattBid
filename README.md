@@ -89,8 +89,12 @@ from the password, not the password.
   `✕` in `Selected` moves it back. Drag lines and tier breaks in the `Selected` panel.
   A selected line that a new import of the month removed shows `not in this package`. The
   export still includes it, so remove it with `✕`.
-- `Export bid` gives one line number per row, tiers flattened top to bottom. Check
-  `add 9952 (VTO)` to append 9952 as the last choice.
+- `Export bid` gives your ranks in the layout of the bid form: one slot for each line number,
+  5 slots in a row, tab-separated, with your rank (1 = top choice, tiers flattened top to
+  bottom) in the slot of each selected line and the other slots empty. Line 1043 is slot 043 of
+  the first grid, so the grid for lines 1001-1285 has slots 001-285. Each thousand block
+  (1xxx, 7xxx reserve) is its own grid, with an empty row between grids. Check `add 9952 (VTO)`
+  to add a last row `9952`, a tab, and its rank (the last choice).
 
 ## Test
 

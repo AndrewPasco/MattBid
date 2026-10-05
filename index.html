@@ -354,10 +354,20 @@ function showTrip(lineNum, ti) {
 }
 
 // ---------- export ----------
+// The bid form has one box per line number, 5 across, where you type your rank for that line.
+// So the export is grids of ranks (1 = top choice), one grid per thousand block (1001 -> slot 001 of block 1), tab-separated, blank = not bid.
 function bidText() {
   const nums = state.selected.filter(s => s.t === 'line').map(s => s.num);
-  if ($('#vto').checked) nums.push(9952);
-  return nums.join('\n');
+  const rank = new Map(nums.map((n, i) => [n, i + 1]));
+  const top = new Map(); // block -> highest slot, from the package and from the picks
+  for (const n of [...(pkg ? pkg.lines.map(l => l.num) : []), ...nums]) top.set(n / 1000 | 0, Math.max(top.get(n / 1000 | 0) || 0, n % 1000));
+  const grids = [...top].sort((a, b) => a[0] - b[0]).map(([b, max]) => {
+    const rows = [];
+    for (let s = 1; s <= max; s += 5) rows.push(Array.from({ length: 5 }, (_, c) => rank.get(b * 1000 + s + c) ?? '').join('\t'));
+    return rows.join('\n');
+  });
+  if ($('#vto').checked) grids.push(`9952\t${nums.length + 1}`);
+  return grids.join('\n\n');
 }
 $('#export').onclick = () => { $('#exportText').value = bidText(); $('#copyBtn').textContent = 'Copy'; exportDlg.showModal(); };
 $('#copyBtn').onclick = () => navigator.clipboard.writeText(bidText()).then(() => $('#copyBtn').textContent = 'Copied', () => alert('Copy failed; select the text and copy manually.'));
