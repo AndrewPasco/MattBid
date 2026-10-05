@@ -89,28 +89,8 @@ from the password, not the password.
   `✕` in `Selected` moves it back. Drag lines and tier breaks in the `Selected` panel.
   A selected line that a new import of the month removed shows `not in this package`. The
   export still includes it, so remove it with `✕`.
-- `Copy bid` copies every selected line, one per row, tiers flattened top to bottom. `Export
-  bid` shows the same text (with `Copy` and `Download`). Check `add 9952 (VTO)` to append 9952
-  as the last choice.
-
-## Fill the bid form
-
-The bid form has one box for each choice (001, 002, ...), and a paste fills only one box. A
-bookmark fills all of them with one click:
-
-1. One time, make the `Fill bid` bookmark. PC: in `Export bid`, drag the `Fill bid` link onto
-   the bookmarks bar (Ctrl+Shift+B shows the bar). iPad: in `Export bid`, tap `Copy form
-   filler`, bookmark any page in Safari (share button, `Add Bookmark`), then long-press the
-   bookmark in the Bookmarks list, tap `Edit`, and replace its address with the copied text.
-   Do not paste the copied text into the form: it starts with `javascript:`.
-2. Each time: tap `Copy bid` in MattBid, open the bid form, and click the `Fill bid` bookmark.
-   The browser may ask to allow reading the clipboard (PC: allow once; iPad: tap `Paste`).
-   If it cannot read the clipboard, a small box appears: paste the bid into it and tap `Fill`.
-3. A message says how many lines it filled and how many boxes it found. If the two numbers
-   differ or the boxes look wrong, the form's boxes are not plain text boxes in page order.
-
-It fills the visible text boxes in page order and replaces what they hold, so check the first
-and last boxes before you submit.
+- `Export bid` gives one line number per row, tiers flattened top to bottom. Check
+  `add 9952 (VTO)` to append 9952 as the last choice.
 
 ## Test
 
