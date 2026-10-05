@@ -80,7 +80,7 @@
   dialog tr.dh td { background: #eaf2fd; }
   dialog pre { font-size: 11px; overflow: auto; background: #f6f7f9; padding: 8px; max-height: 40vh; }
   dialog textarea { width: 100%; height: 40vh; font-family: ui-monospace, monospace; }
-  .actions { display: flex; gap: 8px; justify-content: flex-end; padding: 8px 16px 12px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding: 8px 16px 12px; }
 </style>
 </head>
 <body>
@@ -98,6 +98,7 @@
   <label>Sort <select id="sort"><option value="line">line #</option><option value="creditDesc">credit ↓</option><option value="creditAsc">credit ↑</option></select></label>
   <label><input type="checkbox" id="showReserve" checked> show reserve</label>
   <label><input type="checkbox" id="vto"> add 9952 (VTO)</label>
+  <button id="copyBid" title="Copies every selected line, one per row">Copy bid</button>
   <button id="export" class="primary">Export bid</button>
 </header>
 
@@ -135,7 +136,7 @@
   <div class="actions"><button value="" formnovalidate>Close</button></div></form></dialog>
 <dialog id="tripDlg"><div class="body" id="tripBody"></div><div class="actions"><button onclick="tripDlg.close()">Close</button></div></dialog>
 <dialog id="exportDlg"><div class="body"><h3>Bid</h3><textarea id="exportText" readonly></textarea></div>
-  <div class="actions"><button id="copyBtn">Copy</button><button id="fillBtn" title="Copies a bookmark script. Run it on the bid form to fill every box from the copied bid.">Copy form filler</button><button id="dlBtn">Download</button><button onclick="exportDlg.close()">Close</button></div></dialog>
+  <div class="actions"><button id="copyBtn">Copy</button><a id="fillLink" href="#" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:inherit;text-decoration:none" title="PC: drag this onto your bookmarks bar. Then click it on the bid form to fill every box from the copied bid.">Fill bid</a><button id="fillBtn" title="iPad: copies the bookmark script to paste into a bookmark's address.">Copy form filler</button><button id="dlBtn">Download</button><button onclick="exportDlg.close()">Close</button></div></dialog>
 
 <script src="vendor/Sortable.min.js"></script>
 <script src="parse.js"></script>
@@ -362,17 +363,17 @@ function bidText() {
 $('#export').onclick = () => { $('#exportText').value = bidText(); $('#copyBtn').textContent = 'Copy'; $('#fillBtn').textContent = 'Copy form filler'; exportDlg.showModal(); };
 $('#copyBtn').onclick = () => navigator.clipboard.writeText(bidText()).then(() => $('#copyBtn').textContent = 'Copied', () => alert('Copy failed; select the text and copy manually.'));
 
+$('#copyBid').onclick = () => {
+  const text = bidText(); if (!text) return alert('Select some lines first.');
+  navigator.clipboard.writeText(text).then(() => { $('#copyBid').textContent = `Copied ${text.split('\n').length}`; setTimeout(() => $('#copyBid').textContent = 'Copy bid', 2000); }, () => alert('Copy failed; use Export bid and copy the text.'));
+};
+
 // The bid form takes one line number per box and a paste fills only one box. This runs as a bookmark ON the bid form:
-// it shows a box to paste the copied bid into, then types the lines into the form's text boxes in page order.
+// it reads the copied bid from the clipboard and types the lines into the form's text boxes in page order.
+// If the browser blocks the clipboard read (or the clipboard is not a bid), it shows a box to paste into instead.
 function fillForm() {
-  const d = document.createElement('div');
-  d.style.cssText = 'position:fixed;top:8px;left:8px;z-index:2147483647;background:#fff;color:#000;border:2px solid #333;padding:8px;font:14px sans-serif';
-  d.innerHTML = '<div>Paste the MattBid bid, then tap Fill</div><textarea rows="8" cols="14"></textarea><br><button>Fill</button> <button>Close</button>';
-  document.body.appendChild(d);
-  const [ta] = d.getElementsByTagName('textarea'), [go, close] = d.getElementsByTagName('button');
-  close.onclick = () => d.remove();
-  go.onclick = () => {
-    const nums = ta.value.split(/\s+/).filter(Boolean);
+  const fill = text => {
+    const nums = text.split(/\s+/).filter(Boolean);
     const docs = [document];
     for (const f of document.querySelectorAll('iframe,frame')) try { if (f.contentDocument) docs.push(f.contentDocument); } catch (e) {}
     const boxes = docs.flatMap(dc => [...dc.querySelectorAll('input')].filter(i => ['text', 'tel', 'number'].includes(i.type) && !i.disabled && !i.readOnly && i.offsetParent));
@@ -383,8 +384,21 @@ function fillForm() {
     });
     alert(`Filled ${Math.min(nums.length, boxes.length)} of ${nums.length} lines (${boxes.length} boxes found).`);
   };
+  const ask = () => {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;top:8px;left:8px;z-index:2147483647;background:#fff;color:#000;border:2px solid #333;padding:8px;font:14px sans-serif';
+    d.innerHTML = '<div>Paste the MattBid bid, then tap Fill</div><textarea rows="8" cols="14"></textarea><br><button>Fill</button> <button>Close</button>';
+    document.body.appendChild(d);
+    const [ta] = d.getElementsByTagName('textarea'), [go, close] = d.getElementsByTagName('button');
+    close.onclick = () => d.remove();
+    go.onclick = () => { d.remove(); fill(ta.value); };
+  };
+  Promise.resolve().then(() => navigator.clipboard.readText()).then(t => /^\s*\d+(\s+\d+)*\s*$/.test(t) ? fill(t) : ask(), ask);
 }
-$('#fillBtn').onclick = () => navigator.clipboard.writeText('javascript:' + encodeURIComponent(`(${fillForm})()`)).then(() => $('#fillBtn').textContent = 'Copied', () => alert('Copy failed.'));
+const fillUrl = 'javascript:' + encodeURIComponent(`(${fillForm})()`);
+$('#fillLink').href = fillUrl;
+$('#fillLink').onclick = e => { e.preventDefault(); alert('Drag this link onto your bookmarks bar. Do not click it here.'); };
+$('#fillBtn').onclick = () => navigator.clipboard.writeText(fillUrl).then(() => $('#fillBtn').textContent = 'Copied', () => alert('Copy failed.'));
 function download(blob, name) {
   const file = new File([blob], name, { type: blob.type });
   // In the Home Screen app, the share sheet ('Save to Files') is the documented way to save a file.
