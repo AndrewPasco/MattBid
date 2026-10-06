@@ -92,6 +92,21 @@ from the password, not the password.
 - `Export bid` gives one line number per row, tiers flattened top to bottom. Check
   `add 9952 (VTO)` to append 9952 as the last choice.
 
+## Type the bid into the FedEx form (Windows PC)
+
+The FedEx form takes one 4-digit line number in a box and moves to the next box by itself, and a
+paste fills only one box. `tools/type-bid.bat` types the whole bid for you:
+
+1. In MattBid, tap `Export bid`, then `Copy`.
+2. Double-click `tools/type-bid.bat`. A window counts down 5 seconds.
+3. In that time, click the FIRST box on the FedEx form. The script then types each line number,
+   and the form moves from box to box. Do not touch the keyboard or mouse until it says `Done`.
+4. Check the first and last boxes before you submit.
+
+It refuses to type if the clipboard does not hold only 4-digit line numbers. It types into
+whatever window is in front, so click the first box before the countdown ends. An iPad cannot
+run it.
+
 ## Test
 
 ```bash
