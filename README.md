@@ -105,25 +105,7 @@ paste fills only one box. `tools/type-bid.bat` types the whole bid for you:
 
 It refuses to type if the clipboard does not hold only 4-digit line numbers. It types into
 whatever window is in front, so click the first box before the countdown ends. An iPad cannot
-run it: see the next section.
-
-## Type the bid into the FedEx form (iPad)
-
-An iPad cannot run `type-bid.bat`, so a bookmark does the same job inside the browser. It has
-not been tried on the real form, so check the first and last boxes after every use.
-
-1. One time: in `Export bid`, tap `Copy form helper`. In the browser that shows the FedEx form,
-   bookmark any page, then edit the bookmark and replace its address with the copied text. Name
-   it `Type bid`. Do not paste the copied text into the form: it starts with `javascript:`.
-2. Each time: in `Export bid`, tap `Copy`. Open the FedEx form and tap the first box. Run the
-   `Type bid` bookmark. In Chrome, tapping a bookmark may do nothing: type `Type bid` in the
-   address bar and tap the suggestion with the bookmark icon. Safari runs it from Favorites.
-3. Allow the paste prompt if one appears. A small box shows `Typed 12 of 40` and then `Done`.
-   If the clipboard cannot be read, a box appears: paste the bid into it and tap `Type`.
-
-It types each line number like a keyboard into the active box, so the form's own move to the
-next box after 4 digits still happens. If the form does not move on by itself, the bookmark
-moves to the next box.
+run it.
 
 ## Test
 

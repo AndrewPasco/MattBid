@@ -135,7 +135,7 @@
   <div class="actions"><button value="" formnovalidate>Close</button></div></form></dialog>
 <dialog id="tripDlg"><div class="body" id="tripBody"></div><div class="actions"><button onclick="tripDlg.close()">Close</button></div></dialog>
 <dialog id="exportDlg"><div class="body"><h3>Bid</h3><textarea id="exportText" readonly></textarea></div>
-  <div class="actions"><button id="copyBtn">Copy</button><button id="ipadBtn" title="Copies a bookmark script. Run it on the FedEx bid form to type the copied bid into the boxes.">Copy form helper</button><button id="dlBtn">Download</button><button onclick="exportDlg.close()">Close</button></div></dialog>
+  <div class="actions"><button id="copyBtn">Copy</button><button id="dlBtn">Download</button><button onclick="exportDlg.close()">Close</button></div></dialog>
 
 <script src="vendor/Sortable.min.js"></script>
 <script src="parse.js"></script>
@@ -359,59 +359,8 @@ function bidText() {
   if ($('#vto').checked) nums.push(9952);
   return nums.join('\n');
 }
-$('#export').onclick = () => { $('#exportText').value = bidText(); $('#copyBtn').textContent = 'Copy'; $('#ipadBtn').textContent = 'Copy form helper'; exportDlg.showModal(); };
+$('#export').onclick = () => { $('#exportText').value = bidText(); $('#copyBtn').textContent = 'Copy'; exportDlg.showModal(); };
 $('#copyBtn').onclick = () => navigator.clipboard.writeText(bidText()).then(() => $('#copyBtn').textContent = 'Copied', () => alert('Copy failed; select the text and copy manually.'));
-
-// For the iPad, where tools/type-bid.bat cannot run. This is a bookmark that runs ON the FedEx form: it reads the copied bid
-// and types each line into the active box like a keyboard (key events, then the value), so the form's own "next box after 4 digits" works.
-// If the form does not move on by itself, it moves to the next box. If it cannot read the clipboard, it shows a box to paste into.
-function typeBid() {
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const ok = i => ['text', 'tel', 'number'].includes(i.type) && !i.disabled && !i.readOnly && i.offsetParent;
-  const boxes = () => [...document.querySelectorAll('input')].filter(ok);
-  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-  const key = (el, type, ch) => el.dispatchEvent(new KeyboardEvent(type, { bubbles: true, cancelable: true, key: ch, code: 'Digit' + ch }));
-  const done = new Set();
-  const pick = () => { const a = document.activeElement; return a && a.tagName === 'INPUT' && ok(a) && !done.has(a) ? a : boxes().find(b => !b.value && !done.has(b)); };
-  const bar = document.createElement('div');
-  bar.style.cssText = 'position:fixed;top:8px;left:8px;z-index:2147483647;background:#fff;color:#000;border:2px solid #333;padding:8px;font:14px sans-serif';
-  const run = async text => {
-    const nums = text.split(/\s+/).filter(Boolean);
-    document.body.appendChild(bar);
-    let n = 0;
-    for (const num of nums) {
-      let el = pick();
-      for (let t = 0; t < 10 && !el; t++) { await sleep(100); el = pick(); } // a box may switch on a moment after the last one is filled
-      if (!el) break;
-      el.focus(); setValue.call(el, '');
-      for (const ch of num) {
-        key(el, 'keydown', ch); key(el, 'keypress', ch);
-        setValue.call(el, el.value + ch);
-        el.dispatchEvent(new InputEvent('input', { bubbles: true, data: ch, inputType: 'insertText' }));
-        key(el, 'keyup', ch);
-        await sleep(40);
-      }
-      done.add(el);
-      await sleep(250);
-      if (document.activeElement === el) { const all = boxes(), next = all[all.indexOf(el) + 1]; if (next) next.focus(); }
-      bar.textContent = `Typed ${++n} of ${nums.length}`;
-    }
-    bar.textContent = `Done: typed ${n} of ${nums.length}. Check the first and last boxes.`;
-    setTimeout(() => bar.remove(), 8000);
-  };
-  const valid = t => /^\s*\d{4}(\s+\d{4})*\s*$/.test(t);
-  const ask = () => {
-    const d = document.createElement('div');
-    d.style.cssText = bar.style.cssText;
-    d.innerHTML = '<div>Paste the MattBid bid, then tap Type</div><textarea rows="8" cols="14"></textarea><br><button>Type</button> <button>Close</button>';
-    document.body.appendChild(d);
-    const [ta] = d.getElementsByTagName('textarea'), [go, close] = d.getElementsByTagName('button');
-    close.onclick = () => d.remove();
-    go.onclick = () => { if (!valid(ta.value)) return alert('That is not a list of 4-digit line numbers.'); d.remove(); run(ta.value); };
-  };
-  Promise.resolve().then(() => navigator.clipboard.readText()).then(t => valid(t) ? run(t) : ask(), ask);
-}
-$('#ipadBtn').onclick = () => navigator.clipboard.writeText('javascript:' + encodeURIComponent(`(${typeBid})()`)).then(() => $('#ipadBtn').textContent = 'Copied', () => alert('Copy failed.'));
 function download(blob, name) {
   const file = new File([blob], name, { type: blob.type });
   // In the Home Screen app, the share sheet ('Save to Files') is the documented way to save a file.
