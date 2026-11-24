@@ -130,6 +130,30 @@ test('a two-stop duty, a layover day, then a loop: each route shows on its own d
   assert.deepEqual(stops(pkg), [['KIX', 0, 0], ['KIX PEK ICN', 1, 2], ['ICN PEK ICN', 3, 3], ['MEM', 4, 4]]);
 });
 
+test('overnight stays in KIX and ICN, then home: the pairing lists KIX and ICN once each, not MEM', () => {
+  const pkg = parseAsc(packageText({
+    pairings: [pairing(33, 'OCT 25 ONLY', [
+      leg('3301', 'MEM', 'KIX'), dutyEnd('KIX'),
+      leg('3302', 'KIX', 'ICN'), dutyEnd('ICN'),
+      leg('3303', 'ICN', 'KIX'), dutyEnd('KIX'),
+      leg('3304', 'KIX', 'MEM'), dutyEnd(),
+    ])],
+    line: lineBlock(1001, [['3301', 'KIX'], ['3302', 'ICN'], ['3303', 'KIX'], ['3304']], { 0: [33, '10:00'] }),
+  }));
+  assert.deepEqual(trip(pkg).pairing.layoverCities, ['KIX', 'ICN']);
+  assert.deepEqual(pkg.warnings, []);
+});
+
+test('a pairing with no overnight stay: it lists no layover cities', () => {
+  const pkg = parseAsc(packageText({
+    pairings: [pairing(34, 'OCT 25 ONLY', [
+      leg('3401', 'MEM', 'ORD'), leg('3402', 'ORD', 'MEM'), dutyEnd(),
+    ])],
+    line: lineBlock(1001, [['3401', '3402'], '---', '---'], { 0: [34, '10:00'] }),
+  }));
+  assert.deepEqual(trip(pkg).pairing.layoverCities, []);
+});
+
 test('the last leg departs on a day that the grid marks as a day off: the trip keeps that day', () => {
   const pkg = parseAsc(packageText({
     pairings: [pairing(32, 'OCT 25 ONLY', [

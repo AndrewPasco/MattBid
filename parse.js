@@ -93,6 +93,7 @@
       var effText = hm[5].trim();
       var legs = [];
       var hotels = [];
+      var layoverCities = []; // the cities of the overnight stays, in order, once each (a repeat stay has no hotel name)
       var footer = null;
       var duty = 0;
 
@@ -126,6 +127,7 @@
             duty++; // the line with the duty times ends a duty period
             var name = hmM[1].trim();
             if (name) hotels.push({ name: name, layover: hmM[2] ? hmM[2] + ' ' + hmM[3] : '' });
+            if (hmM[2] && layoverCities.indexOf(hmM[2]) < 0) layoverCities.push(hmM[2]);
           }
         }
       }
@@ -140,6 +142,7 @@
         crew: block[1].trim(),
         legs: legs,
         hotels: hotels,
+        layoverCities: layoverCities,
         credit: footer ? footer.credit : '',
         creditT: footer ? footer.creditT : false,
         blk: footer ? footer.blk : '',

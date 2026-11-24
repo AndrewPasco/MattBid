@@ -19,7 +19,7 @@
   header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
   header h1 { font-size: 16px; margin: 0 8px 0 0; }
   header label { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); }
-  #dhCity { width: 5em; text-transform: uppercase; }
+  #dhCity, #layCity { width: 5em; text-transform: uppercase; }
   #month:empty { display: none; }
   main { display: grid; gap: 12px; padding: 12px; }
   #selPanel[hidden] { display: none; }
@@ -93,6 +93,8 @@
   <input type="file" id="file" title="Import a bid package (.asc)">
   <label>DH city <input id="dhCity" maxlength="4" placeholder="ORD">
     <select id="dhMode"><option value="exclude">exclude</option><option value="only">only</option></select></label>
+  <label>Layover city <input id="layCity" maxlength="4" placeholder="CDG">
+    <select id="layMode"><option value="only">only</option><option value="exclude">exclude</option></select></label>
   <label>Days off <select id="daysOffMode"><option value="highlight">highlight</option><option value="hide">hide lines</option></select>
     <button id="clearDays">clear</button></label>
   <label>Sort <select id="sort"><option value="line">line #</option><option value="creditDesc">credit ↓</option><option value="creditAsc">credit ↑</option></select></label>
@@ -142,7 +144,7 @@
 <script>
 const $ = s => document.querySelector(s);
 let pkg = null;
-const freshState = () => ({ selected: [], filters: { dhCity: '', dhMode: 'exclude', daysOff: [], daysOffMode: 'highlight' }, sort: 'line', showReserve: true, vto: false });
+const freshState = () => ({ selected: [], filters: { dhCity: '', dhMode: 'exclude', layCity: '', layMode: 'only', daysOff: [], daysOffMode: 'highlight' }, sort: 'line', showReserve: true, vto: false });
 let state = freshState();
 
 // ---------- per-month state (localStorage, small) ----------
@@ -158,8 +160,10 @@ function save() {
 function load() {
   state = freshState();
   try { const s = localStorage.getItem(key()); if (s) Object.assign(state, JSON.parse(s)); } catch (e) {}
+  state.filters = { ...freshState().filters, ...state.filters }; // a state saved before a filter existed has no key for it
   savedJson = JSON.stringify({ ...state, updatedAt: 0 });
   $('#dhCity').value = state.filters.dhCity; $('#dhMode').value = state.filters.dhMode;
+  $('#layCity').value = state.filters.layCity; $('#layMode').value = state.filters.layMode;
   $('#daysOffMode').value = state.filters.daysOffMode; $('#sort').value = state.sort;
   $('#showReserve').checked = state.showReserve; $('#vto').checked = state.vto;
 }
@@ -230,11 +234,13 @@ const lineByNum = n => pkg.lines.find(l => l.num === n);
 const fmtDay = iso => String(new Date(iso + 'T00:00').getDate()); // weekends are shaded, so the number is enough
 const isWknd = iso => [0, 6].includes(new Date(iso + 'T00:00').getDay());
 function lineCities(line) { return new Set(line.trips.flatMap(t => t.dhCities)); }
+function lineLayovers(line) { return new Set(line.trips.flatMap(t => (t.pairing && t.pairing.layoverCities) || [])); } // a reserve line has no pairing
 function lineWorkDays(line) { const s = new Set(); line.trips.forEach(t => { for (let i = t.startIdx; i <= t.endIdx; i++) s.add(i); }); return s; }
 function passes(line) {
-  const f = state.filters, city = f.dhCity.trim().toUpperCase();
+  const f = state.filters, city = f.dhCity.trim().toUpperCase(), lay = f.layCity.trim().toUpperCase();
   if (line.reserve && !state.showReserve) return false;
   if (city) { const has = lineCities(line).has(city); if (f.dhMode === 'exclude' ? has : !has) return false; }
+  if (lay) { const has = lineLayovers(line).has(lay); if (f.layMode === 'exclude' ? has : !has) return false; }
   if (f.daysOffMode === 'hide' && f.daysOff.length) { const w = lineWorkDays(line); if (f.daysOff.some(d => w.has(d))) return false; }
   return true;
 }
@@ -330,6 +336,8 @@ function toggleDay(i) {
 $('#clearDays').onclick = () => { state.filters.daysOff = []; render(); };
 $('#dhCity').oninput = e => { state.filters.dhCity = e.target.value; render(); };
 $('#dhMode').onchange = e => { state.filters.dhMode = e.target.value; render(); };
+$('#layCity').oninput = e => { state.filters.layCity = e.target.value; render(); };
+$('#layMode').onchange = e => { state.filters.layMode = e.target.value; render(); };
 $('#daysOffMode').onchange = e => { state.filters.daysOffMode = e.target.value; render(); };
 $('#sort').onchange = e => { state.sort = e.target.value; render(); };
 $('#showReserve').onchange = e => { state.showReserve = e.target.checked; render(); };

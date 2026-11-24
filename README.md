@@ -85,6 +85,8 @@ from the password, not the password.
   highlights those days or hides lines that work on them.
 - `DH city`: type an airport code. `exclude` hides lines with a deadhead through that city,
   `only` shows only those lines.
+- `Layover city`: type an airport code. `only` shows only the lines with a layover (an overnight
+  stay at a hotel) in that city, and `exclude` hides those lines. Reserve lines have no layover.
 - Select a line with its checkbox. The line moves from the list to the `Selected` panel.
   `✕` in `Selected` moves it back. Drag lines and tier breaks in the `Selected` panel.
   A selected line that a new import of the month removed shows `not in this package`. The
